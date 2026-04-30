@@ -29,7 +29,7 @@ function saveData(d) {
 }
 
 function fmt(n) {
-  return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return "€ " + Number(n).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function todayStr() {
@@ -80,7 +80,7 @@ export default function App() {
           <div style={styles.appTitle}>FinCheck</div>
           <div style={styles.appSub}>{monthLabel(currentMonthKey())}</div>
         </div>
-        <div style={styles.badge}>MVP v1.0</div>
+        <div style={styles.badge}>v1.2</div>
       </div>
 
       {/* NAV */}
@@ -251,8 +251,8 @@ function AddTransaction({ data, updateData }) {
       {/* GRID */}
       <div style={styles.formGrid}>
         <div style={styles.formGroup}>
-          <label style={styles.label}>Valor (R$)</label>
-          <input style={styles.input} type="number" placeholder="0,00" min="0" step="0.01" value={value} onChange={e => setValue(e.target.value)} />
+          <label style={styles.label}>Valor (€)</label>
+          <input style={styles.input} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={value} onChange={e => setValue(e.target.value)} />
         </div>
         <div style={styles.formGroup}>
           <label style={styles.label}>Data</label>
@@ -397,7 +397,7 @@ function Settings({ data, updateData }) {
           <div style={styles.settingsLabel}>Limite de gastos mensais</div>
           <div style={styles.settingsDesc}>Alerta quando saídas ultrapassarem esse valor</div>
         </div>
-        <input style={{ ...styles.input, width: 130 }} type="number" placeholder="Ex: 2000" min="0" value={limitVal} onChange={e => setLimitVal(e.target.value)} />
+        <input style={{ ...styles.input, width: 130 }} type="number" inputMode="decimal" placeholder="Ex: 2000" min="0" value={limitVal} onChange={e => setLimitVal(e.target.value)} />
       </div>
 
       <div style={styles.settingsRow}>
@@ -457,7 +457,7 @@ function TxItem({ tx, onDelete }) {
 // ESTILOS
 // ============================================================
 const styles = {
-  app: { maxWidth: 680, margin: "0 auto", padding: "16px 12px", fontFamily: "system-ui, sans-serif", fontSize: 14, color: "#1a1a1a" },
+  app: { maxWidth: 680, margin: "0 auto", padding: "16px 12px", fontFamily: "system-ui, sans-serif", fontSize: 14, color: "#1a1a1a", overflowX: "hidden" },
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   appTitle: { fontSize: 22, fontWeight: 600 },
   appSub: { fontSize: 12, color: "#888", marginTop: 2 },
