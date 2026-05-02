@@ -79,9 +79,10 @@ export default function App() {
   const labels = ["Início","Registrar","Histórico","Caixinhas","FIIs","Categorias","Alertas"];
 
   const appStyle = {
-    maxWidth:680, margin:"0 auto", padding:"16px 12px",
+    maxWidth:680, margin:"0 auto", padding:"16px 10px",
     fontFamily:"system-ui,sans-serif", fontSize:14,
-    color:T.text, background:T.bg, minHeight:"100vh", overflowX:"hidden",
+    color:T.text, background:T.bg, minHeight:"100vh",
+    overflowX:"hidden", boxSizing:"border-box", width:"100%",
   };
 
   return (
@@ -728,9 +729,9 @@ function SectionTitle({ T, children }) {
 }
 function MetricCard({ label, value, color, T }) {
   return (
-    <div style={{ background:T.metric, borderRadius:8, padding:10, textAlign:"center" }}>
-      <div style={{ fontSize:10, color:T.textMuted, marginBottom:4 }}>{label}</div>
-      <div style={{ fontSize:13, fontWeight:600, color }}>{value}</div>
+    <div style={{ background:T.metric, borderRadius:8, padding:"8px 6px", textAlign:"center", minWidth:0 }}>
+      <div style={{ fontSize:10, color:T.textMuted, marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{label}</div>
+      <div style={{ fontSize:12, fontWeight:600, color, wordBreak:"break-all", lineHeight:1.3 }}>{value}</div>
     </div>
   );
 }
@@ -763,4 +764,4 @@ function TxItem({ tx, T, onDelete, onEdit }) {
 const inputStyle = T => ({ width:"100%", padding:"8px 10px", border:`0.5px solid ${T.border}`, borderRadius:8, background:T.input, color:T.inputText, fontSize:13, fontFamily:"inherit", outline:"none" });
 const btnSmStyle = T => ({ padding:"8px 14px", border:`0.5px solid ${T.border}`, borderRadius:8, background:T.card, color:T.text, cursor:"pointer", fontSize:13, fontWeight:500, whiteSpace:"nowrap" });
 const typeBtnStyle = { flex:1, padding:8, border:"0.5px solid", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:500 };
-const grid3 = { display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:8, marginBottom:12 };
+const grid3 = { display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:6, marginBottom:12 };

@@ -3,27 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-
-    <!-- VIEWPORT FIXO: impede zoom automático e mantém tela estável no mobile -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-
-    <!-- PWA: aparece como app na tela inicial do iPhone -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="FinCheck" />
-
     <title>FinCheck</title>
-
     <style>
-      /* Evita scroll horizontal e zoom indesejado */
-      * { box-sizing: border-box; }
+      *, *::before, *::after { box-sizing: border-box; }
       html, body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
+        margin: 0; padding: 0;
+        width: 100%; max-width: 100vw;
         overflow-x: hidden;
-        -webkit-text-size-adjust: 100%; /* impede iOS de aumentar fonte ao girar tela */
+        -webkit-text-size-adjust: 100%;
       }
+      #root { width: 100%; max-width: 100vw; overflow-x: hidden; }
     </style>
   </head>
   <body>
