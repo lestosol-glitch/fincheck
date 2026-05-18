@@ -12,7 +12,14 @@ function loadData() {
   catch { return defaultData(); }
 }
 function defaultData() {
-  return { transactions:[], categories:["Alimentação","Transporte","Aluguel","Lazer","Saúde","Educação","Salário","Outros"], limit:null, caixinhas:[], fiis:[], darkMode:false };
+  return {
+    transactions: [],
+    categories: ["Alimentação","Transporte","Aluguel","Lazer","Saúde","Educação","Salário","Dividendos","Outros"],
+    limit: null,
+    caixinhas: [],
+    fiis: [],       // { id, codigo, cotas, precoMedio, precoAtual, ultimoDividendo, rendimentos[] }
+    darkMode: false,
+  };
 }
 function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
 
@@ -26,9 +33,9 @@ function loadAuth() {
   catch { return { hash: null }; }
 }
 function saveAuth(hash) { localStorage.setItem(AUTH_KEY, JSON.stringify({ hash })); }
-function clearAuth() { localStorage.removeItem(AUTH_KEY); }
+function clearAuth()    { localStorage.removeItem(AUTH_KEY); }
 
-function fmt(n)    { return "€ " + Number(n).toLocaleString("pt-PT", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+function fmt(n)    { return "€ "  + Number(n).toLocaleString("pt-PT", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
 function fmtBRL(n) { return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
 function todayStr()        { return new Date().toISOString().slice(0,10); }
 function currentMonthKey() { return new Date().toISOString().slice(0,7); }
@@ -53,104 +60,80 @@ function getTheme(dark) {
 }
 
 // ============================================================
-// CAMPO DE SENHA NUMÉRICA — abre teclado numérico no celular
+// CAMPO PIN NUMÉRICO
 // ============================================================
-function PinInput({ value, onChange, placeholder="••••••••", autoFocus=false, onEnter, T }) {
+function PinInput({ value, onChange, autoFocus=false, onEnter, T }) {
   return (
     <input
       type="tel"
       inputMode="numeric"
       pattern="[0-9]*"
-      placeholder={placeholder}
+      placeholder="••••••••"
       value={value}
-      onChange={e => onChange(e.target.value.replace(/\D/g, ""))} // aceita só números
+      onChange={e => onChange(e.target.value.replace(/\D/g, ""))}
       onKeyDown={e => e.key === "Enter" && onEnter && onEnter()}
       autoFocus={autoFocus}
-      style={{
-        ...iStyle(T),
-        fontSize:22,
-        letterSpacing:6,
-        textAlign:"center",
-        WebkitTextSecurity:"disc", // esconde os dígitos no iOS/Safari
-      }}
+      style={{ ...iStyle(T), fontSize:22, letterSpacing:6, textAlign:"center", WebkitTextSecurity:"disc" }}
     />
   );
 }
 
 // ============================================================
-// TELA DE LOGIN / DEFINIR SENHA
+// TELA DE LOGIN / BLOQUEIO
 // ============================================================
 function AuthScreen({ onLogin, dark }) {
-  const T = getTheme(dark);
+  const T    = getTheme(dark);
   const auth = loadAuth();
   const isNew = !auth.hash;
 
-  const [pin, setPin]         = useState("");
+  const [pin, setPin]       = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError]     = useState("");
+  const [error, setError]   = useState("");
   const [showReset, setShowReset] = useState(false);
 
   function handleSubmit() {
-    if (pin.length < 4) { setError("A senha deve ter pelo menos 4 dígitos."); return; }
+    if (pin.length < 4) { setError("O PIN deve ter pelo menos 4 dígitos."); return; }
     if (isNew) {
       if (pin !== confirm) { setError("Os PINs não coincidem."); return; }
-      saveAuth(hashPin(pin));
-      onLogin();
+      saveAuth(hashPin(pin)); onLogin();
     } else {
-      if (hashPin(pin) !== auth.hash) { setError("PIN incorreto. Tente novamente."); return; }
+      if (hashPin(pin) !== auth.hash) { setError("PIN incorreto. Tente novamente."); setPin(""); return; }
       onLogin();
     }
   }
 
   function handleReset() {
-    if (!window.confirm("Isso vai apagar TODOS os dados e remover o PIN. Tem certeza?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    clearAuth();
-    window.location.reload();
+    if (!window.confirm("Isso apaga TODOS os dados e remove o PIN. Tem certeza?")) return;
+    localStorage.removeItem(STORAGE_KEY); clearAuth(); window.location.reload();
   }
 
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:T.bg, padding:20 }}>
       <div style={{ width:"100%", maxWidth:340, background:T.card, borderRadius:20, padding:32, border:`0.5px solid ${T.border}` }}>
-
-        {/* LOGO */}
         <div style={{ textAlign:"center", marginBottom:28 }}>
           <div style={{ fontSize:40, marginBottom:8 }}>💰</div>
           <div style={{ fontSize:24, fontWeight:700, color:T.text }}>FinCheck</div>
           <div style={{ fontSize:13, color:T.textMuted, marginTop:4 }}>
-            {isNew ? "Crie um PIN numérico para começar" : "Digite seu PIN para entrar"}
+            {isNew ? "Crie um PIN para proteger o app" : "Digite seu PIN para entrar"}
           </div>
         </div>
 
-        {/* CAMPO PIN */}
-        <div style={{ marginBottom:12 }}>
-          <label style={{ fontSize:12, color:T.textMuted, fontWeight:500, display:"block", marginBottom:6 }}>
-            {isNew ? "Novo PIN (mínimo 4 dígitos)" : "PIN"}
-          </label>
-          <PinInput value={pin} onChange={v => { setPin(v); setError(""); }} autoFocus T={T} onEnter={handleSubmit} />
-        </div>
+        <FG label={isNew ? "Novo PIN (mínimo 4 dígitos)" : "PIN"} T={T}>
+          <PinInput value={pin} onChange={v=>{setPin(v);setError("");}} autoFocus T={T} onEnter={handleSubmit}/>
+        </FG>
 
-        {/* CONFIRMAR (só na criação) */}
         {isNew && (
-          <div style={{ marginBottom:12 }}>
-            <label style={{ fontSize:12, color:T.textMuted, fontWeight:500, display:"block", marginBottom:6 }}>Confirmar PIN</label>
-            <PinInput value={confirm} onChange={v => { setConfirm(v); setError(""); }} T={T} onEnter={handleSubmit} />
-          </div>
+          <FG label="Confirmar PIN" T={T}>
+            <PinInput value={confirm} onChange={v=>{setConfirm(v);setError("");}} T={T} onEnter={handleSubmit}/>
+          </FG>
         )}
 
-        {/* ERRO */}
-        {error && (
-          <div style={{ background:"#FCEBEB", border:"0.5px solid #E24B4A", borderRadius:8, padding:"8px 12px", fontSize:13, color:"#E24B4A", marginBottom:12 }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ background:"#FCEBEB", border:"0.5px solid #E24B4A", borderRadius:8, padding:"8px 12px", fontSize:13, color:"#E24B4A", marginBottom:12 }}>{error}</div>}
 
-        {/* BOTÃO ENTRAR */}
         <button onClick={handleSubmit} style={{ width:"100%", padding:13, background:"#1D9E75", color:"#fff", border:"none", borderRadius:10, fontSize:15, fontWeight:600, cursor:"pointer", marginBottom:16 }}>
           {isNew ? "Criar PIN e entrar" : "Entrar"}
         </button>
 
-        {/* ESQUECI */}
         {!isNew && (
           <div style={{ textAlign:"center" }}>
             <button onClick={() => setShowReset(!showReset)} style={{ background:"none", border:"none", fontSize:12, color:T.textMuted, cursor:"pointer", textDecoration:"underline" }}>
@@ -158,7 +141,7 @@ function AuthScreen({ onLogin, dark }) {
             </button>
             {showReset && (
               <div style={{ marginTop:12, background:T.bg2, borderRadius:10, padding:14, fontSize:13, color:T.textMuted }}>
-                ⚠️ Resetar o PIN apaga todos os dados do app.
+                ⚠️ Resetar apaga todos os dados do app.
                 <button onClick={handleReset} style={{ display:"block", width:"100%", marginTop:10, padding:9, background:"#E24B4A", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>
                   Resetar e apagar tudo
                 </button>
@@ -196,8 +179,8 @@ export default function App() {
   }
 
   function toggleDark() { updateData(d => { d.darkMode = !d.darkMode; return d; }); }
-  function handleLogout() { if (!window.confirm("Deseja sair do FinCheck?")) return; setLoggedIn(false); setPage("dashboard"); }
 
+  // Mostra tela de bloqueio se não autenticado
   if (!loggedIn) return <AuthScreen onLogin={() => setLoggedIn(true)} dark={dark} />;
 
   const pages  = ["dashboard","add","history","caixinhas","fiis","categories","settings"];
@@ -206,15 +189,18 @@ export default function App() {
 
   return (
     <div style={{ maxWidth:680, margin:"0 auto", padding:"16px 10px", fontFamily:"system-ui,sans-serif", fontSize:14, color:T.text, background:T.bg, minHeight:"100vh", overflowX:"hidden", boxSizing:"border-box", width:"100%" }}>
-      {/* HEADER */}
+
+      {/* HEADER — sem botão de sair */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
         <div>
           <div style={{ fontSize:22, fontWeight:600, color:T.text }}>FinCheck</div>
           <div style={{ fontSize:12, color:T.textMuted, marginTop:2 }}>{monthLabel(currentMonthKey())}</div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={toggleDark} style={{ background:"none", border:`0.5px solid ${T.border}`, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:16, color:T.text }}>{dark?"☀️":"🌙"}</button>
-          <button onClick={handleLogout} style={{ background:"none", border:`0.5px solid ${T.border}`, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:12, color:T.textMuted }}>🔒 Sair</button>
+          <button onClick={toggleDark} style={{ background:"none", border:`0.5px solid ${T.border}`, borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:16, color:T.text }}>
+            {dark ? "☀️" : "🌙"}
+          </button>
+          <div style={{ fontSize:11, background:T.metric, border:`0.5px solid ${T.border}`, borderRadius:8, padding:"4px 10px", color:T.textMuted }}>v1.6</div>
         </div>
       </div>
 
@@ -288,14 +274,21 @@ function Dashboard({ data, T }) {
   const maxBar=Math.max(...last6.map(m=>Math.max(m.income,m.expense)),1);
   const totalCaixinhas=(data.caixinhas||[]).reduce((s,c)=>s+c.valor,0);
   const totalFIIs=(data.fiis||[]).reduce((s,f)=>s+f.cotas*f.precoAtual,0);
-  const dividendosMes=(data.fiis||[]).reduce((s,f)=>s+f.cotas*(f.ultimoDividendo||0),0);
+  // Total dividendos recebidos no mês atual
+  const anoAtual=new Date().getFullYear().toString();
+  const dividendosAno=(data.fiis||[]).reduce((s,f)=>{
+    const rends=f.rendimentos||[];
+    return s+rends.filter(r=>r.data.startsWith(anoAtual)).reduce((a,r)=>a+r.total,0);
+  },0);
+
   return (
     <div>
       {overLimit&&<div style={{ background:"#FAEEDA",border:"0.5px solid #BA7517",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#BA7517" }}>⚠ Atenção: limite de gastos do mês ultrapassado!</div>}
       <ST T={T}>Gastos — {monthLabel(mk)}</ST>
       <div style={g3}><MC label="Saldo" value={fmt(totalIn-totalOut)} color="#185FA5" T={T}/><MC label="Entradas" value={fmt(income)} color="#1D9E75" T={T}/><MC label="Saídas" value={fmt(expense)} color="#E24B4A" T={T}/></div>
       <ST T={T}>Investimentos</ST>
-      <div style={g3}><MC label="Caixinhas" value={fmtBRL(totalCaixinhas)} color="#534AB7" T={T}/><MC label="FIIs" value={fmtBRL(totalFIIs)} color="#BA7517" T={T}/><MC label="Dividendos/mês" value={fmtBRL(dividendosMes)} color="#1D9E75" T={T}/></div>
+      <div style={g3}><MC label="Caixinhas" value={fmtBRL(totalCaixinhas)} color="#534AB7" T={T}/><MC label="FIIs (total)" value={fmtBRL(totalFIIs)} color="#BA7517" T={T}/><MC label={`Dividendos ${anoAtual}`} value={fmtBRL(dividendosAno)} color="#1D9E75" T={T}/></div>
+
       <Card T={T}>
         <ST T={T}>Gastos por categoria — mês atual</ST>
         {catLabels.length===0?<Emp T={T}>Nenhuma saída registrada ainda.</Emp>:(
@@ -334,9 +327,8 @@ function AddTransaction({ data, updateData, T }) {
   const [type,setType]=useState("income"),[value,setValue]=useState(""),[date,setDate]=useState(todayStr()),[category,setCategory]=useState(data.categories[0]||""),[description,setDescription]=useState(""),[recurring,setRecurring]=useState(false),[saved,setSaved]=useState(false);
   function handleSave(){const val=parseFloat(value);if(!val||val<=0||!date||!category){alert("Preencha valor, data e categoria.");return;}updateData(d=>{d.transactions.push({id:Date.now(),type,value:val,date,category,description,recurring});return d;});setValue("");setDescription("");setRecurring(false);setSaved(true);setTimeout(()=>setSaved(false),2000);}
   return (
-    <Card T={T}>
-      <ST T={T}>Nova transação</ST>
-      <div style={{ marginBottom:10 }}><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Tipo</label><div style={{ display:"flex",gap:6 }}><button onClick={()=>setType("income")} style={{ ...tBtn,flex:1,...(type==="income"?{background:"#E1F5EE",color:"#085041",borderColor:"#1D9E75"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>+ Entrada</button><button onClick={()=>setType("expense")} style={{ ...tBtn,flex:1,...(type==="expense"?{background:"#FCEBEB",color:"#501313",borderColor:"#E24B4A"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>− Saída</button></div></div>
+    <Card T={T}><ST T={T}>Nova transação</ST>
+      <div style={{ marginBottom:10 }}><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Tipo</label><div style={{ display:"flex",gap:6 }}><button onClick={()=>setType("income")} style={{ ...tBtn,...(type==="income"?{background:"#E1F5EE",color:"#085041",borderColor:"#1D9E75"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>+ Entrada</button><button onClick={()=>setType("expense")} style={{ ...tBtn,...(type==="expense"?{background:"#FCEBEB",color:"#501313",borderColor:"#E24B4A"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>− Saída</button></div></div>
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
         <FG label="Valor (€)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={value} onChange={e=>setValue(e.target.value)}/></FG>
         <FG label="Data" T={T}><input style={iStyle(T)} type="date" value={date} onChange={e=>setDate(e.target.value)}/></FG>
@@ -376,7 +368,7 @@ function EditModal({ tx, data, T, onSave, onClose }) {
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
       <div style={{ width:"100%",maxWidth:400,background:T.card,borderRadius:16,padding:20 }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}><div style={{ fontSize:15,fontWeight:600,color:T.text }}>✏️ Editar transação</div><button onClick={onClose} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.textMuted }}>✕</button></div>
-        <div style={{ display:"flex",gap:6,marginBottom:12 }}><button onClick={()=>setType("income")} style={{ ...tBtn,flex:1,...(type==="income"?{background:"#E1F5EE",color:"#085041",borderColor:"#1D9E75"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>+ Entrada</button><button onClick={()=>setType("expense")} style={{ ...tBtn,flex:1,...(type==="expense"?{background:"#FCEBEB",color:"#501313",borderColor:"#E24B4A"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>− Saída</button></div>
+        <div style={{ display:"flex",gap:6,marginBottom:12 }}><button onClick={()=>setType("income")} style={{ ...tBtn,...(type==="income"?{background:"#E1F5EE",color:"#085041",borderColor:"#1D9E75"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>+ Entrada</button><button onClick={()=>setType("expense")} style={{ ...tBtn,...(type==="expense"?{background:"#FCEBEB",color:"#501313",borderColor:"#E24B4A"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>− Saída</button></div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12 }}>
           <FG label="Valor (€)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" value={value} onChange={e=>setValue(e.target.value)}/></FG>
           <FG label="Data" T={T}><input style={iStyle(T)} type="date" value={date} onChange={e=>setDate(e.target.value)}/></FG>
@@ -410,20 +402,219 @@ function Caixinhas({ data, updateData, T }) {
 }
 
 // ============================================================
-// FIIs
+// FIIs — com rendimentos, adicionar cotas e histórico
 // ============================================================
 function FIIs({ data, updateData, T }) {
-  const fiis=data.fiis||[];
-  const [showForm,setShowForm]=useState(false),[editId,setEditId]=useState(null),[codigo,setCodigo]=useState(""),[cotas,setCotas]=useState(""),[precoMedio,setPrecoMedio]=useState(""),[precoAtual,setPrecoAtual]=useState(""),[ultimoDividendo,setUltimoDividendo]=useState("");
-  function handleSave(){if(!codigo.trim()||!cotas||!precoMedio||!precoAtual){alert("Preencha os campos obrigatórios.");return;}const fii={id:editId||Date.now(),codigo:codigo.trim().toUpperCase(),cotas:parseFloat(cotas),precoMedio:parseFloat(precoMedio),precoAtual:parseFloat(precoAtual),ultimoDividendo:parseFloat(ultimoDividendo)||0};updateData(d=>{if(editId)d.fiis=d.fiis.map(f=>f.id===editId?fii:f);else d.fiis.push(fii);return d;});setCodigo("");setCotas("");setPrecoMedio("");setPrecoAtual("");setUltimoDividendo("");setShowForm(false);setEditId(null);}
-  function handleEdit(f){setEditId(f.id);setCodigo(f.codigo);setCotas(String(f.cotas));setPrecoMedio(String(f.precoMedio));setPrecoAtual(String(f.precoAtual));setUltimoDividendo(String(f.ultimoDividendo||""));setShowForm(true);}
-  function handleDelete(id){if(!window.confirm("Apagar este FII?"))return;updateData(d=>{d.fiis=d.fiis.filter(f=>f.id!==id);return d;});}
-  const totalP=fiis.reduce((s,f)=>s+f.cotas*f.precoAtual,0),totalI=fiis.reduce((s,f)=>s+f.cotas*f.precoMedio,0),totalD=fiis.reduce((s,f)=>s+f.cotas*(f.ultimoDividendo||0),0),lucroT=totalP-totalI;
+  const fiis = data.fiis || [];
+  const [showForm, setShowForm]         = useState(false);
+  const [editId, setEditId]             = useState(null);
+  const [activeTab, setActiveTab]       = useState(null); // id do FII com painel aberto
+  const [modalType, setModalType]       = useState(null); // "rendimento" | "cotas"
+
+  // Campos FII base
+  const [codigo, setCodigo]             = useState("");
+  const [cotas, setCotas]               = useState("");
+  const [precoMedio, setPrecoMedio]     = useState("");
+  const [precoAtual, setPrecoAtual]     = useState("");
+  const [ultimoDividendo, setUltimoDividendo] = useState("");
+
+  // Campos adicionar cotas
+  const [addCotas, setAddCotas]         = useState("");
+  const [addPreco, setAddPreco]         = useState("");
+  const [addData, setAddData]           = useState(todayStr());
+
+  // Campos rendimento
+  const [rendData, setRendData]         = useState(todayStr());
+  const [rendValor, setRendValor]       = useState("");
+  const [rendLancar, setRendLancar]     = useState(true);
+
+  function handleSave() {
+    if (!codigo.trim()||!cotas||!precoMedio||!precoAtual) { alert("Preencha código, cotas, preço médio e preço atual."); return; }
+    const fii = { id:editId||Date.now(), codigo:codigo.trim().toUpperCase(), cotas:parseFloat(cotas), precoMedio:parseFloat(precoMedio), precoAtual:parseFloat(precoAtual), ultimoDividendo:parseFloat(ultimoDividendo)||0, rendimentos: editId ? (fiis.find(f=>f.id===editId)?.rendimentos||[]) : [] };
+    updateData(d=>{ if(editId) d.fiis=d.fiis.map(f=>f.id===editId?fii:f); else d.fiis.push(fii); return d; });
+    resetForm();
+  }
+
+  function resetForm() { setCodigo("");setCotas("");setPrecoMedio("");setPrecoAtual("");setUltimoDividendo("");setShowForm(false);setEditId(null); }
+
+  function handleEdit(f) { setEditId(f.id);setCodigo(f.codigo);setCotas(String(f.cotas));setPrecoMedio(String(f.precoMedio));setPrecoAtual(String(f.precoAtual));setUltimoDividendo(String(f.ultimoDividendo||""));setShowForm(true); }
+
+  function handleDelete(id) { if(!window.confirm("Apagar este FII?"))return; updateData(d=>{d.fiis=d.fiis.filter(f=>f.id!==id);return d;}); }
+
+  // ADICIONAR COTAS — recalcula preço médio ponderado
+  function handleAddCotas(fii) {
+    const novasCotas = parseFloat(addCotas);
+    const novoPreco  = parseFloat(addPreco);
+    if (!novasCotas||novasCotas<=0||!novoPreco||novoPreco<=0) { alert("Preencha quantidade e preço."); return; }
+    const totalCotas  = fii.cotas + novasCotas;
+    const novoMedio   = ((fii.cotas * fii.precoMedio) + (novasCotas * novoPreco)) / totalCotas;
+    updateData(d=>{ d.fiis=d.fiis.map(f=>f.id===fii.id?{...f,cotas:totalCotas,precoMedio:parseFloat(novoMedio.toFixed(2))}:f); return d; });
+    setAddCotas("");setAddPreco("");setModalType(null);
+  }
+
+  // LANÇAR RENDIMENTO
+  function handleRendimento(fii) {
+    const valor = parseFloat(rendValor);
+    if (!valor||valor<=0||!rendData) { alert("Preencha data e valor por cota."); return; }
+    const total = parseFloat((fii.cotas * valor).toFixed(2));
+    const rend  = { id:Date.now(), data:rendData, valorCota:valor, total };
+    updateData(d=>{
+      d.fiis = d.fiis.map(f => {
+        if (f.id !== fii.id) return f;
+        const rendimentos = [...(f.rendimentos||[]), rend];
+        return { ...f, ultimoDividendo:valor, rendimentos };
+      });
+      // Lançar como entrada no histórico de transações
+      if (rendLancar) {
+        d.transactions.push({ id:Date.now()+1, type:"income", value:total, date:rendData, category:"Dividendos", description:`Dividendo ${fii.codigo}`, recurring:false });
+      }
+      return d;
+    });
+    setRendValor("");setModalType(null);
+  }
+
+  const totalP = fiis.reduce((s,f)=>s+f.cotas*f.precoAtual,0);
+  const totalI = fiis.reduce((s,f)=>s+f.cotas*f.precoMedio,0);
+  const lucroT = totalP - totalI;
+  const anoAtual = new Date().getFullYear().toString();
+  const totalDivAno = fiis.reduce((s,f)=>{
+    return s+(f.rendimentos||[]).filter(r=>r.data.startsWith(anoAtual)).reduce((a,r)=>a+r.total,0);
+  },0);
+
   return (
     <div>
-      <Card T={T}><ST T={T}>Resumo da carteira</ST><div style={g3}><MC label="Patrimônio" value={fmtBRL(totalP)} color="#BA7517" T={T}/><MC label="Investido" value={fmtBRL(totalI)} color="#185FA5" T={T}/><MC label="Lucro/Prej." value={fmtBRL(lucroT)} color={lucroT>=0?"#1D9E75":"#E24B4A"} T={T}/></div><div style={{ marginTop:8,padding:"10px 12px",background:"#FAEEDA",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center" }}><span style={{ fontSize:13,color:"#BA7517",fontWeight:500 }}>💰 Dividendos estimados/mês</span><span style={{ fontSize:15,fontWeight:700,color:"#BA7517" }}>{fmtBRL(totalD)}</span></div></Card>
-      {fiis.map(f=>{const p=f.cotas*f.precoAtual,inv=f.cotas*f.precoMedio,lc=p-inv,lcP=inv>0?(lc/inv*100).toFixed(1):0,div=f.cotas*(f.ultimoDividendo||0),ym=f.precoAtual>0&&f.ultimoDividendo>0?((f.ultimoDividendo/f.precoAtual)*100).toFixed(2):null;return(<Card key={f.id} T={T}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}><div><div style={{ fontSize:16,fontWeight:700,color:T.text }}>{f.codigo}</div><div style={{ fontSize:12,color:T.textMuted,marginTop:2 }}>{f.cotas} cotas</div></div><div style={{ display:"flex",gap:6 }}><button style={bSm(T)} onClick={()=>handleEdit(f)}>Editar</button><button style={{ ...bSm(T),color:"#E24B4A",borderColor:"#E24B4A" }} onClick={()=>handleDelete(f.id)}>✕</button></div></div><div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>{[["Patrimônio",fmtBRL(p),null],["Lucro/Prej.",`${fmtBRL(lc)} (${lcP}%)`,lc>=0?"#1D9E75":"#E24B4A"],["Preço médio",fmtBRL(f.precoMedio),null],["Preço atual",fmtBRL(f.precoAtual),null],["Dividendo/mês",fmtBRL(div),"#BA7517"],ym?["Yield mensal",`${ym}%`,"#BA7517"]:null].filter(Boolean).map(([l,v,c])=>(<div key={l} style={{ background:T.metric,borderRadius:8,padding:"8px 10px" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>{l}</div><div style={{ fontSize:13,fontWeight:600,color:c||T.text }}>{v}</div></div>))}</div></Card>);})}
-      {showForm&&(<Card T={T}><ST T={T}>{editId?"Editar FII":"Adicionar FII"}</ST><div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}><div style={{ gridColumn:"1/-1" }}><FG label="Código (ex: HGLG11)" T={T}><input style={iStyle(T)} type="text" placeholder="XXXX11" maxLength={7} value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase())}/></FG></div><FG label="Qtd. de cotas" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0" min="0" value={cotas} onChange={e=>setCotas(e.target.value)}/></FG><FG label="Preço médio (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoMedio} onChange={e=>setPrecoMedio(e.target.value)}/></FG><FG label="Preço atual (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoAtual} onChange={e=>setPrecoAtual(e.target.value)}/></FG><FG label="Último dividendo/cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={ultimoDividendo} onChange={e=>setUltimoDividendo(e.target.value)}/></FG></div><div style={{ display:"flex",gap:8,marginTop:8 }}><button onClick={handleSave} style={{ flex:2,padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }}>Salvar</button><button style={{ ...bSm(T),flex:1 }} onClick={()=>{setShowForm(false);setEditId(null);}}>Cancelar</button></div></Card>)}
+      {/* RESUMO */}
+      <Card T={T}>
+        <ST T={T}>Resumo da carteira</ST>
+        <div style={g3}>
+          <MC label="Patrimônio" value={fmtBRL(totalP)} color="#BA7517" T={T}/>
+          <MC label="Investido"  value={fmtBRL(totalI)} color="#185FA5" T={T}/>
+          <MC label="Lucro/Prej." value={fmtBRL(lucroT)} color={lucroT>=0?"#1D9E75":"#E24B4A"} T={T}/>
+        </div>
+        <div style={{ padding:"10px 12px",background:"#FAEEDA",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <span style={{ fontSize:13,color:"#BA7517",fontWeight:500 }}>💰 Dividendos recebidos {anoAtual}</span>
+          <span style={{ fontSize:15,fontWeight:700,color:"#BA7517" }}>{fmtBRL(totalDivAno)}</span>
+        </div>
+      </Card>
+
+      {/* LISTA DE FIIs */}
+      {fiis.map(f => {
+        const p=f.cotas*f.precoAtual, inv=f.cotas*f.precoMedio, lc=p-inv;
+        const lcP=inv>0?(lc/inv*100).toFixed(1):0;
+        const divAno=(f.rendimentos||[]).filter(r=>r.data.startsWith(anoAtual)).reduce((a,r)=>a+r.total,0);
+        const ym=f.precoAtual>0&&f.ultimoDividendo>0?((f.ultimoDividendo/f.precoAtual)*100).toFixed(2):null;
+        const isOpen = activeTab === f.id;
+
+        return (
+          <Card key={f.id} T={T}>
+            {/* CABEÇALHO */}
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
+              <div>
+                <div style={{ fontSize:16,fontWeight:700,color:T.text }}>{f.codigo}</div>
+                <div style={{ fontSize:12,color:T.textMuted,marginTop:2 }}>{f.cotas} cotas · Médio: {fmtBRL(f.precoMedio)}</div>
+              </div>
+              <div style={{ display:"flex",gap:6 }}>
+                <button style={bSm(T)} onClick={()=>handleEdit(f)}>Editar</button>
+                <button style={{ ...bSm(T),color:"#E24B4A",borderColor:"#E24B4A" }} onClick={()=>handleDelete(f.id)}>✕</button>
+              </div>
+            </div>
+
+            {/* MÉTRICAS */}
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
+              {[["Patrimônio",fmtBRL(p),null],["Lucro/Prej.",`${fmtBRL(lc)} (${lcP}%)`,lc>=0?"#1D9E75":"#E24B4A"],["Preço atual",fmtBRL(f.precoAtual),null],["Últ. dividendo/cota",fmtBRL(f.ultimoDividendo||0),"#BA7517"],["Dividendos "+anoAtual,fmtBRL(divAno),"#1D9E75"],ym?["Yield mensal",`${ym}%`,"#BA7517"]:null].filter(Boolean).map(([l,v,c])=>(
+                <div key={l} style={{ background:T.metric,borderRadius:8,padding:"8px 10px" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>{l}</div><div style={{ fontSize:13,fontWeight:600,color:c||T.text }}>{v}</div></div>
+              ))}
+            </div>
+
+            {/* BOTÕES DE AÇÃO */}
+            <div style={{ display:"flex",gap:8,marginBottom: isOpen ? 12 : 0 }}>
+              <button onClick={()=>{ setActiveTab(isOpen&&modalType==="cotas"?null:f.id); setModalType("cotas"); }} style={{ ...bSm(T),flex:1,background:modalType==="cotas"&&isOpen?"#E6F1FB":T.card,color:modalType==="cotas"&&isOpen?"#185FA5":T.text,borderColor:modalType==="cotas"&&isOpen?"#185FA5":T.border }}>
+                ➕ Adicionar cotas
+              </button>
+              <button onClick={()=>{ setActiveTab(isOpen&&modalType==="rendimento"?null:f.id); setModalType("rendimento"); }} style={{ ...bSm(T),flex:1,background:modalType==="rendimento"&&isOpen?"#FAEEDA":T.card,color:modalType==="rendimento"&&isOpen?"#BA7517":T.text,borderColor:modalType==="rendimento"&&isOpen?"#BA7517":T.border }}>
+                💰 Lançar rendimento
+              </button>
+            </div>
+
+            {/* PAINEL ADICIONAR COTAS */}
+            {isOpen && modalType==="cotas" && (
+              <div style={{ background:T.bg2,borderRadius:10,padding:14 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:10 }}>➕ Adicionar cotas a {f.codigo}</div>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
+                  <FG label="Qtd. de cotas" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="Ex: 10" min="0" value={addCotas} onChange={e=>setAddCotas(e.target.value)}/></FG>
+                  <FG label="Preço pago/cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={addPreco} onChange={e=>setAddPreco(e.target.value)}/></FG>
+                </div>
+                {addCotas&&addPreco&&(
+                  <div style={{ background:T.metric,borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.textMuted }}>
+                    Novo total: <strong style={{ color:T.text }}>{f.cotas + parseFloat(addCotas||0)} cotas</strong> · Novo preço médio: <strong style={{ color:T.text }}>{fmtBRL(((f.cotas*f.precoMedio)+(parseFloat(addCotas||0)*parseFloat(addPreco||0)))/(f.cotas+parseFloat(addCotas||0)))}</strong>
+                  </div>
+                )}
+                <div style={{ display:"flex",gap:8 }}>
+                  <button onClick={()=>handleAddCotas(f)} style={{ flex:2,padding:9,background:"#185FA5",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer" }}>Confirmar compra</button>
+                  <button onClick={()=>setModalType(null)} style={{ ...bSm(T),flex:1 }}>Cancelar</button>
+                </div>
+              </div>
+            )}
+
+            {/* PAINEL RENDIMENTO */}
+            {isOpen && modalType==="rendimento" && (
+              <div style={{ background:T.bg2,borderRadius:10,padding:14 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:10 }}>💰 Lançar rendimento de {f.codigo}</div>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
+                  <FG label="Data do pagamento" T={T}><input style={iStyle(T)} type="date" value={rendData} onChange={e=>setRendData(e.target.value)}/></FG>
+                  <FG label="Valor por cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.001" value={rendValor} onChange={e=>setRendValor(e.target.value)}/></FG>
+                </div>
+                {rendValor&&(
+                  <div style={{ background:T.metric,borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.textMuted }}>
+                    Total recebido: <strong style={{ color:"#BA7517",fontSize:14 }}>{fmtBRL(f.cotas*parseFloat(rendValor||0))}</strong>
+                  </div>
+                )}
+                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
+                  <input type="checkbox" id={`lancar${f.id}`} checked={rendLancar} onChange={e=>setRendLancar(e.target.checked)} style={{ width:16,height:16,cursor:"pointer" }}/>
+                  <label htmlFor={`lancar${f.id}`} style={{ fontSize:13,color:T.textMuted,cursor:"pointer" }}>Lançar automaticamente como entrada no histórico</label>
+                </div>
+                <div style={{ display:"flex",gap:8 }}>
+                  <button onClick={()=>handleRendimento(f)} style={{ flex:2,padding:9,background:"#BA7517",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer" }}>Confirmar rendimento</button>
+                  <button onClick={()=>setModalType(null)} style={{ ...bSm(T),flex:1 }}>Cancelar</button>
+                </div>
+
+                {/* HISTÓRICO DE RENDIMENTOS */}
+                {(f.rendimentos||[]).length>0&&(
+                  <div style={{ marginTop:14 }}>
+                    <div style={{ fontSize:11,fontWeight:600,color:T.textMuted,textTransform:"uppercase",letterSpacing:".05em",marginBottom:8 }}>Histórico de rendimentos</div>
+                    {[...(f.rendimentos||[])].sort((a,b)=>b.data.localeCompare(a.data)).map(r=>(
+                      <div key={r.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`0.5px solid ${T.border}`,fontSize:13 }}>
+                        <div>
+                          <div style={{ color:T.text,fontWeight:500 }}>{r.data.split("-").reverse().join("/")}</div>
+                          <div style={{ fontSize:11,color:T.textMuted }}>{fmtBRL(r.valorCota)}/cota</div>
+                        </div>
+                        <div style={{ color:"#BA7517",fontWeight:600 }}>{fmtBRL(r.total)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+
+      {/* FORMULÁRIO NOVO FII */}
+      {showForm&&(
+        <Card T={T}><ST T={T}>{editId?"Editar FII":"Adicionar FII"}</ST>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            <div style={{ gridColumn:"1/-1" }}><FG label="Código (ex: HGLG11)" T={T}><input style={iStyle(T)} type="text" placeholder="XXXX11" maxLength={7} value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase())}/></FG></div>
+            <FG label="Qtd. de cotas" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0" min="0" value={cotas} onChange={e=>setCotas(e.target.value)}/></FG>
+            <FG label="Preço médio (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoMedio} onChange={e=>setPrecoMedio(e.target.value)}/></FG>
+            <FG label="Preço atual (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoAtual} onChange={e=>setPrecoAtual(e.target.value)}/></FG>
+            <FG label="Último dividendo/cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.001" value={ultimoDividendo} onChange={e=>setUltimoDividendo(e.target.value)}/></FG>
+          </div>
+          <div style={{ display:"flex",gap:8,marginTop:8 }}>
+            <button onClick={handleSave} style={{ flex:2,padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }}>Salvar</button>
+            <button style={{ ...bSm(T),flex:1 }} onClick={resetForm}>Cancelar</button>
+          </div>
+        </Card>
+      )}
       {!showForm&&<button onClick={()=>setShowForm(true)} style={{ width:"100%",padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer",marginTop:4 }}>+ Adicionar FII</button>}
     </div>
   );
@@ -447,7 +638,7 @@ function Categories({ data, updateData, T }) {
 }
 
 // ============================================================
-// CONFIGURAÇÕES — com alterar PIN numérico
+// CONFIGURAÇÕES
 // ============================================================
 function Settings({ data, updateData, T }) {
   const [limitVal,setLimitVal]=useState(data.limit||"");
@@ -496,21 +687,6 @@ function MC({ label, value, color, T }) {
   return <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center",minWidth:0 }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{label}</div><div style={{ fontSize:12,fontWeight:600,color,wordBreak:"break-all",lineHeight:1.3 }}>{value}</div></div>;
 }
 function FG({ label, T, children }){ return <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}><label style={{ fontSize:12,color:T.textMuted,fontWeight:500 }}>{label}</label>{children}</div>; }
-function PinInput({ value, onChange, autoFocus=false, onEnter, T }) {
-  return (
-    <input
-      type="tel"
-      inputMode="numeric"
-      pattern="[0-9]*"
-      placeholder="••••••••"
-      value={value}
-      onChange={e => onChange(e.target.value.replace(/\D/g, ""))}
-      onKeyDown={e => e.key==="Enter" && onEnter && onEnter()}
-      autoFocus={autoFocus}
-      style={{ ...iStyle(T), fontSize:22, letterSpacing:6, textAlign:"center", WebkitTextSecurity:"disc" }}
-    />
-  );
-}
 function TxItem({ tx, T, onDelete, onEdit }) {
   const isIncome=tx.type==="income";
   return (
