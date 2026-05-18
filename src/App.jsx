@@ -352,9 +352,59 @@ function History({ data, updateData, T }) {
   if(fType)txs=txs.filter(t=>t.type===fType);if(fCat)txs=txs.filter(t=>t.category===fCat);if(fMonth)txs=txs.filter(t=>monthKey(t.date)===fMonth);
   function deleteTx(id){updateData(d=>{d.transactions=d.transactions.filter(t=>t.id!==id);return d;});}
   function saveEdit(u){updateData(d=>{d.transactions=d.transactions.map(t=>t.id===u.id?u:t);return d;});setEditTx(null);}
+
+  // Totais das transações filtradas
+  const totalEntradas = txs.filter(t=>t.type==="income").reduce((s,t)=>s+t.value,0);
+  const totalSaidas   = txs.filter(t=>t.type==="expense").reduce((s,t)=>s+t.value,0);
+
+  // Exportar para CSV (abre direto no Excel)
+  function exportarExcel() {
+    if (txs.length===0) { alert("Nenhuma transação para exportar."); return; }
+    const header = ["Data","Tipo","Categoria","Descrição","Valor (€)"];
+    const rows = txs.map(t => [
+      t.date.split("-").reverse().join("/"),
+      t.type==="income" ? "Entrada" : "Saída",
+      t.category,
+      t.description || "",
+      (t.type==="expense" ? "-" : "") + t.value.toFixed(2).replace(".",",")
+    ]);
+    const totalRow = ["","","","Total entradas:", totalEntradas.toFixed(2).replace(".",",")];
+    const totalRow2= ["","","","Total saídas:",  "-"+totalSaidas.toFixed(2).replace(".",",")];
+    const totalRow3= ["","","","Saldo filtrado:", (totalEntradas-totalSaidas).toFixed(2).replace(".",",")];
+    const csv = [header,...rows,[""],totalRow,totalRow2,totalRow3]
+      .map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";"))
+      .join("\n");
+    // BOM para Excel reconhecer UTF-8
+    const blob = new Blob(["\uFEFF"+csv], { type:"text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    const filtro = fMonth ? `_${fMonth}` : `_todos`;
+    a.download = `fincheck${filtro}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
-      <Card T={T}><ST T={T}>Filtros</ST><div style={{ display:"flex",gap:8,flexWrap:"wrap" }}><select style={{ ...iStyle(T),flex:1 }} value={fType} onChange={e=>setFType(e.target.value)}><option value="">Todos os tipos</option><option value="income">Entradas</option><option value="expense">Saídas</option></select><select style={{ ...iStyle(T),flex:1 }} value={fCat} onChange={e=>setFCat(e.target.value)}><option value="">Todas categorias</option>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select><select style={{ ...iStyle(T),flex:1 }} value={fMonth} onChange={e=>setFMonth(e.target.value)}><option value="">Todos os meses</option>{months.map(m=><option key={m} value={m}>{monthLabel(m)}</option>)}</select></div></Card>
+      <Card T={T}>
+        <ST T={T}>Filtros</ST>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:10 }}>
+          <select style={{ ...iStyle(T),flex:1 }} value={fType} onChange={e=>setFType(e.target.value)}><option value="">Todos os tipos</option><option value="income">Entradas</option><option value="expense">Saídas</option></select>
+          <select style={{ ...iStyle(T),flex:1 }} value={fCat} onChange={e=>setFCat(e.target.value)}><option value="">Todas categorias</option>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
+          <select style={{ ...iStyle(T),flex:1 }} value={fMonth} onChange={e=>setFMonth(e.target.value)}><option value="">Todos os meses</option>{months.map(m=><option key={m} value={m}>{monthLabel(m)}</option>)}</select>
+        </div>
+        {/* TOTAIS DO FILTRO */}
+        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10 }}>
+          <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Entradas</div><div style={{ fontSize:12,fontWeight:600,color:"#1D9E75" }}>{fmt(totalEntradas)}</div></div>
+          <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Saídas</div><div style={{ fontSize:12,fontWeight:600,color:"#E24B4A" }}>{fmt(totalSaidas)}</div></div>
+          <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Saldo</div><div style={{ fontSize:12,fontWeight:600,color:(totalEntradas-totalSaidas)>=0?"#185FA5":"#E24B4A" }}>{fmt(totalEntradas-totalSaidas)}</div></div>
+        </div>
+        {/* BOTÃO EXPORTAR */}
+        <button onClick={exportarExcel} style={{ width:"100%",padding:"9px",background:"#1D9E75",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
+          📥 Exportar para Excel ({txs.length} registos)
+        </button>
+      </Card>
       {editTx&&<EditModal tx={editTx} data={data} T={T} onSave={saveEdit} onClose={()=>setEditTx(null)}/>}
       <div>{txs.length===0?<Emp T={T}>Nenhuma transação encontrada.</Emp>:txs.map(t=><TxItem key={t.id} tx={t} T={T} onDelete={()=>deleteTx(t.id)} onEdit={()=>setEditTx({...t})}/>)}</div>
     </div>
@@ -505,6 +555,17 @@ function FIIs({ data, updateData, T }) {
         const ym=f.precoAtual>0&&f.ultimoDividendo>0?((f.ultimoDividendo/f.precoAtual)*100).toFixed(2):null;
         const isOpen = activeTab === f.id;
 
+        // Cálculo de rentabilidade acumulada
+        const totalRendimentos = (f.rendimentos||[]).reduce((s,r)=>s+r.total,0);
+        const rentAcum = inv > 0 ? ((totalRendimentos / inv) * 100).toFixed(2) : 0;
+        const primeiraData = (f.rendimentos||[]).length > 0
+          ? [...f.rendimentos].sort((a,b)=>a.data.localeCompare(b.data))[0].data
+          : null;
+        const mesesInvestido = primeiraData
+          ? Math.max(1, Math.round((new Date()-new Date(primeiraData))/(1000*60*60*24*30)))
+          : null;
+        const rendMedioMes = mesesInvestido ? (totalRendimentos / mesesInvestido).toFixed(2) : null;
+
         return (
           <Card key={f.id} T={T}>
             {/* CABEÇALHO */}
@@ -525,6 +586,32 @@ function FIIs({ data, updateData, T }) {
                 <div key={l} style={{ background:T.metric,borderRadius:8,padding:"8px 10px" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>{l}</div><div style={{ fontSize:13,fontWeight:600,color:c||T.text }}>{v}</div></div>
               ))}
             </div>
+
+            {/* PAINEL RENTABILIDADE ACUMULADA */}
+            {totalRendimentos > 0 && (
+              <div style={{ background: rentAcum>0?"#E1F5EE":"#f8f8f8", border:`0.5px solid ${rentAcum>0?"#1D9E75":T.border}`, borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
+                <div style={{ fontSize:11,fontWeight:600,color:T.textMuted,textTransform:"uppercase",letterSpacing:".05em",marginBottom:10 }}>📈 Rentabilidade acumulada</div>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8 }}>
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:10,color:T.textMuted,marginBottom:4 }}>Total recebido</div>
+                    <div style={{ fontSize:14,fontWeight:700,color:"#1D9E75" }}>{fmtBRL(totalRendimentos)}</div>
+                  </div>
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:10,color:T.textMuted,marginBottom:4 }}>Rentab. s/ investido</div>
+                    <div style={{ fontSize:14,fontWeight:700,color:"#1D9E75" }}>{rentAcum}%</div>
+                  </div>
+                  <div style={{ textAlign:"center" }}>
+                    <div style={{ fontSize:10,color:T.textMuted,marginBottom:4 }}>Média/mês</div>
+                    <div style={{ fontSize:14,fontWeight:700,color:"#BA7517" }}>{fmtBRL(rendMedioMes)}</div>
+                  </div>
+                </div>
+                {mesesInvestido && (
+                  <div style={{ marginTop:10,fontSize:11,color:T.textMuted,textAlign:"center" }}>
+                    Recebendo dividendos há <strong style={{ color:T.text }}>{mesesInvestido} {mesesInvestido===1?"mês":"meses"}</strong> · Total investido: <strong style={{ color:T.text }}>{fmtBRL(inv)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* BOTÕES DE AÇÃO */}
             <div style={{ display:"flex",gap:8,marginBottom: isOpen ? 12 : 0 }}>
