@@ -434,19 +434,178 @@ function EditModal({ tx, data, T, onSave, onClose }) {
 // ============================================================
 // CAIXINHAS
 // ============================================================
+function ModalCaixinha({ caixinha, T, onSave, onClose }) {
+  // Se caixinha===null é nova, senão é edição
+  const isNew = !caixinha;
+  const [nome,  setNome]  = useState(caixinha?.nome  || "");
+  const [valor, setValor] = useState(caixinha ? String(caixinha.valor) : "");
+  const [meta,  setMeta]  = useState(caixinha ? String(caixinha.meta || "") : "");
+  const [novoValor, setNovoValor] = useState(""); // campo "atualizar valor"
+  const [rendimento, setRendimento] = useState(""); // quanto rendeu
+
+  // Valor exibido como "atual" na edição
+  const valorAtual = caixinha?.valor || 0;
+  const totalRendimentos = caixinha?.totalRendimentos || 0;
+
+  function handleSave() {
+    const v = parseFloat(isNew ? valor : novoValor || valor);
+    if (!nome.trim() || isNaN(v) || v < 0) { alert("Preencha nome e valor."); return; }
+    const rend = parseFloat(rendimento) || 0;
+    onSave({
+      id: caixinha?.id || Date.now(),
+      nome: nome.trim(),
+      valor: v,
+      meta: parseFloat(meta) || 0,
+      totalRendimentos: (caixinha?.totalRendimentos || 0) + rend,
+    });
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ width:"100%", maxWidth:400, background:T.card, borderRadius:18, padding:22, border:`0.5px solid ${T.border}` }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ fontSize:16, fontWeight:700, color:T.text }}>{isNew ? "🐷 Nova caixinha" : `🐷 ${caixinha.nome}`}</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:T.textMuted }}>✕</button>
+        </div>
+
+        <FG label="Nome" T={T}>
+          <input style={iStyle(T)} type="text" placeholder="Ex: Viagem, Reserva..." value={nome} onChange={e=>setNome(e.target.value)}/>
+        </FG>
+
+        {isNew ? (
+          <FG label="Valor inicial (R$)" T={T}>
+            <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/>
+          </FG>
+        ) : (
+          <>
+            {/* VALOR ATUAL + ATUALIZAR */}
+            <div style={{ background:T.metric, borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
+              <div style={{ fontSize:11, color:T.textMuted, marginBottom:2 }}>Valor atual</div>
+              <div style={{ fontSize:22, fontWeight:700, color:"#534AB7" }}>{fmtBRL(valorAtual)}</div>
+              {totalRendimentos > 0 && (
+                <div style={{ fontSize:11, color:"#1D9E75", marginTop:4 }}>
+                  📈 Total rendido: <strong>{fmtBRL(totalRendimentos)}</strong>
+                  {valorAtual > 0 && <span style={{ marginLeft:6, color:T.textMuted }}>({((totalRendimentos/valorAtual)*100).toFixed(1)}% do valor atual)</span>}
+                </div>
+              )}
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <FG label="Novo valor (R$)" T={T}>
+                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder={String(valorAtual)} min="0" step="0.01" value={novoValor} onChange={e=>setNovoValor(e.target.value)}/>
+              </FG>
+              <FG label="Rendeu este mês (R$)" T={T}>
+                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={rendimento} onChange={e=>setRendimento(e.target.value)}/>
+              </FG>
+            </div>
+            {novoValor && rendimento && (
+              <div style={{ background:"#E1F5EE", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#085041", marginBottom:10 }}>
+                💡 Novo valor: <strong>{fmtBRL(parseFloat(novoValor))}</strong> · Total rendido acumulado: <strong>{fmtBRL((caixinha.totalRendimentos||0)+parseFloat(rendimento))}</strong>
+              </div>
+            )}
+          </>
+        )}
+
+        <FG label="Meta (R$) — opcional" T={T}>
+          <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={meta} onChange={e=>setMeta(e.target.value)}/>
+        </FG>
+
+        <div style={{ display:"flex", gap:8, marginTop:4 }}>
+          <button onClick={handleSave} style={{ flex:2, padding:11, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:"pointer" }}>
+            Salvar
+          </button>
+          <button onClick={onClose} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Caixinhas({ data, updateData, T }) {
-  const caixinhas=data.caixinhas||[];
-  const [showForm,setShowForm]=useState(false),[nome,setNome]=useState(""),[valor,setValor]=useState(""),[meta,setMeta]=useState(""),[editId,setEditId]=useState(null);
-  function handleSave(){const v=parseFloat(valor);if(!nome.trim()||isNaN(v)||v<0){alert("Preencha nome e valor.");return;}updateData(d=>{if(editId)d.caixinhas=d.caixinhas.map(c=>c.id===editId?{...c,nome:nome.trim(),valor:v,meta:parseFloat(meta)||0}:c);else d.caixinhas.push({id:Date.now(),nome:nome.trim(),valor:v,meta:parseFloat(meta)||0});return d;});setNome("");setValor("");setMeta("");setShowForm(false);setEditId(null);}
-  function handleEdit(c){setEditId(c.id);setNome(c.nome);setValor(String(c.valor));setMeta(String(c.meta||""));setShowForm(true);}
-  function handleDelete(id){if(!window.confirm("Apagar esta caixinha?"))return;updateData(d=>{d.caixinhas=d.caixinhas.filter(c=>c.id!==id);return d;});}
-  const total=caixinhas.reduce((s,c)=>s+c.valor,0);
+  const caixinhas = data.caixinhas || [];
+  const [modal, setModal] = useState(null); // null | "nova" | objeto caixinha
+
+  function handleSave(c) {
+    updateData(d => {
+      const exists = d.caixinhas.find(x => x.id === c.id);
+      if (exists) d.caixinhas = d.caixinhas.map(x => x.id === c.id ? c : x);
+      else d.caixinhas.push(c);
+      return d;
+    });
+    setModal(null);
+  }
+
+  function handleDelete(id) {
+    if (!window.confirm("Apagar esta caixinha?")) return;
+    updateData(d => { d.caixinhas = d.caixinhas.filter(c => c.id !== id); return d; });
+  }
+
+  const total = caixinhas.reduce((s, c) => s + c.valor, 0);
+  const totalRendido = caixinhas.reduce((s, c) => s + (c.totalRendimentos || 0), 0);
+
   return (
     <div>
-      <Card T={T}><ST T={T}>Total guardado</ST><div style={{ fontSize:28,fontWeight:700,color:"#534AB7",marginBottom:4 }}>{fmtBRL(total)}</div><div style={{ fontSize:12,color:T.textMuted }}>{caixinhas.length} caixinha{caixinhas.length!==1?"s":""}</div></Card>
-      {caixinhas.map(c=>{const pct=c.meta>0?Math.min(100,Math.round(c.valor/c.meta*100)):null;return(<Card key={c.id} T={T}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8 }}><div><div style={{ fontSize:15,fontWeight:600,color:T.text }}>🐷 {c.nome}</div><div style={{ fontSize:22,fontWeight:700,color:"#534AB7",marginTop:4 }}>{fmtBRL(c.valor)}</div>{c.meta>0&&<div style={{ fontSize:12,color:T.textMuted,marginTop:2 }}>Meta: {fmtBRL(c.meta)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={bSm(T)} onClick={()=>handleEdit(c)}>Editar</button><button style={{ ...bSm(T),color:"#E24B4A",borderColor:"#E24B4A" }} onClick={()=>handleDelete(c.id)}>✕</button></div></div>{pct!==null&&(<div><div style={{ display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginBottom:4 }}><span>Progresso</span><span>{pct}%</span></div><div style={{ background:T.bg2,borderRadius:99,height:8,overflow:"hidden" }}><div style={{ width:`${pct}%`,height:"100%",background:pct>=100?"#1D9E75":"#534AB7",borderRadius:99 }}/></div></div>)}</Card>);})}
-      {showForm&&(<Card T={T}><ST T={T}>{editId?"Editar caixinha":"Nova caixinha"}</ST><div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}><div style={{ gridColumn:"1/-1" }}><FG label="Nome" T={T}><input style={iStyle(T)} type="text" placeholder="Ex: Viagem..." value={nome} onChange={e=>setNome(e.target.value)}/></FG></div><FG label="Valor atual (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/></FG><FG label="Meta (R$) — opcional" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={meta} onChange={e=>setMeta(e.target.value)}/></FG></div><div style={{ display:"flex",gap:8,marginTop:8 }}><button onClick={handleSave} style={{ flex:2,padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }}>Salvar</button><button style={{ ...bSm(T),flex:1 }} onClick={()=>{setShowForm(false);setEditId(null);}}>Cancelar</button></div></Card>)}
-      {!showForm&&<button onClick={()=>setShowForm(true)} style={{ width:"100%",padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer",marginTop:4 }}>+ Nova caixinha</button>}
+      {/* MODAL */}
+      {modal && (
+        <ModalCaixinha
+          caixinha={modal === "nova" ? null : modal}
+          T={T}
+          onSave={handleSave}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {/* RESUMO */}
+      <Card T={T}>
+        <ST T={T}>Total guardado</ST>
+        <div style={{ fontSize:28, fontWeight:700, color:"#534AB7", marginBottom:4 }}>{fmtBRL(total)}</div>
+        <div style={{ fontSize:12, color:T.textMuted, marginBottom: totalRendido>0?8:0 }}>{caixinhas.length} caixinha{caixinhas.length!==1?"s":""}</div>
+        {totalRendido > 0 && (
+          <div style={{ background:"#E1F5EE", borderRadius:8, padding:"8px 12px", fontSize:13, color:"#085041", display:"flex", justifyContent:"space-between" }}>
+            <span>📈 Total rendido (todas)</span>
+            <strong>{fmtBRL(totalRendido)}</strong>
+          </div>
+        )}
+      </Card>
+
+      {/* LISTA */}
+      {caixinhas.map(c => {
+        const pct = c.meta > 0 ? Math.min(100, Math.round(c.valor / c.meta * 100)) : null;
+        return (
+          <Card key={c.id} T={T}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:600, color:T.text }}>🐷 {c.nome}</div>
+                <div style={{ fontSize:22, fontWeight:700, color:"#534AB7", marginTop:4 }}>{fmtBRL(c.valor)}</div>
+                {c.meta > 0 && <div style={{ fontSize:12, color:T.textMuted, marginTop:2 }}>Meta: {fmtBRL(c.meta)}</div>}
+                {(c.totalRendimentos||0) > 0 && (
+                  <div style={{ fontSize:12, color:"#1D9E75", marginTop:4 }}>
+                    📈 Rendeu: <strong>{fmtBRL(c.totalRendimentos)}</strong>
+                    <span style={{ color:T.textMuted, marginLeft:4 }}>({((c.totalRendimentos/c.valor)*100).toFixed(1)}%)</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ display:"flex", gap:6 }}>
+                <button style={bSm(T)} onClick={() => setModal(c)}>Editar</button>
+                <button style={{ ...bSm(T), color:"#E24B4A", borderColor:"#E24B4A" }} onClick={() => handleDelete(c.id)}>✕</button>
+              </div>
+            </div>
+            {pct !== null && (
+              <div>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.textMuted, marginBottom:4 }}>
+                  <span>Progresso</span><span>{pct}%</span>
+                </div>
+                <div style={{ background:T.bg2, borderRadius:99, height:8, overflow:"hidden" }}>
+                  <div style={{ width:`${pct}%`, height:"100%", background:pct>=100?"#1D9E75":"#534AB7", borderRadius:99 }}/>
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+
+      <button onClick={() => setModal("nova")} style={{ width:"100%", padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer", marginTop:4 }}>
+        + Nova caixinha
+      </button>
     </div>
   );
 }
@@ -555,17 +714,6 @@ function FIIs({ data, updateData, T }) {
         const ym=f.precoAtual>0&&f.ultimoDividendo>0?((f.ultimoDividendo/f.precoAtual)*100).toFixed(2):null;
         const isOpen = activeTab === f.id;
 
-        // Cálculo de rentabilidade acumulada
-        const totalRendimentos = (f.rendimentos||[]).reduce((s,r)=>s+r.total,0);
-        const rentAcum = inv > 0 ? ((totalRendimentos / inv) * 100).toFixed(2) : 0;
-        const primeiraData = (f.rendimentos||[]).length > 0
-          ? [...f.rendimentos].sort((a,b)=>a.data.localeCompare(b.data))[0].data
-          : null;
-        const mesesInvestido = primeiraData
-          ? Math.max(1, Math.round((new Date()-new Date(primeiraData))/(1000*60*60*24*30)))
-          : null;
-        const rendMedioMes = mesesInvestido ? (totalRendimentos / mesesInvestido).toFixed(2) : null;
-
         return (
           <Card key={f.id} T={T}>
             {/* CABEÇALHO */}
@@ -586,32 +734,6 @@ function FIIs({ data, updateData, T }) {
                 <div key={l} style={{ background:T.metric,borderRadius:8,padding:"8px 10px" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>{l}</div><div style={{ fontSize:13,fontWeight:600,color:c||T.text }}>{v}</div></div>
               ))}
             </div>
-
-            {/* PAINEL RENTABILIDADE ACUMULADA */}
-            {totalRendimentos > 0 && (
-              <div style={{ background: rentAcum>0?"#E1F5EE":"#f8f8f8", border:`0.5px solid ${rentAcum>0?"#1D9E75":T.border}`, borderRadius:10, padding:"12px 14px", marginBottom:10 }}>
-                <div style={{ fontSize:11,fontWeight:600,color:T.textMuted,textTransform:"uppercase",letterSpacing:".05em",marginBottom:10 }}>📈 Rentabilidade acumulada</div>
-                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8 }}>
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:10,color:T.textMuted,marginBottom:4 }}>Total recebido</div>
-                    <div style={{ fontSize:14,fontWeight:700,color:"#1D9E75" }}>{fmtBRL(totalRendimentos)}</div>
-                  </div>
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:10,color:T.textMuted,marginBottom:4 }}>Rentab. s/ investido</div>
-                    <div style={{ fontSize:14,fontWeight:700,color:"#1D9E75" }}>{rentAcum}%</div>
-                  </div>
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:10,color:T.textMuted,marginBottom:4 }}>Média/mês</div>
-                    <div style={{ fontSize:14,fontWeight:700,color:"#BA7517" }}>{fmtBRL(rendMedioMes)}</div>
-                  </div>
-                </div>
-                {mesesInvestido && (
-                  <div style={{ marginTop:10,fontSize:11,color:T.textMuted,textAlign:"center" }}>
-                    Recebendo dividendos há <strong style={{ color:T.text }}>{mesesInvestido} {mesesInvestido===1?"mês":"meses"}</strong> · Total investido: <strong style={{ color:T.text }}>{fmtBRL(inv)}</strong>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* BOTÕES DE AÇÃO */}
             <div style={{ display:"flex",gap:8,marginBottom: isOpen ? 12 : 0 }}>
