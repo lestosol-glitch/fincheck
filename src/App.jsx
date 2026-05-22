@@ -434,95 +434,170 @@ function EditModal({ tx, data, T, onSave, onClose }) {
 // ============================================================
 // CAIXINHAS
 // ============================================================
+// ============================================================
+// MODAL CAIXINHA — edição com histórico mensal
+// ============================================================
 function ModalCaixinha({ caixinha, T, onSave, onClose }) {
-  // Se caixinha===null é nova, senão é edição
   const isNew = !caixinha;
-  const [nome,  setNome]  = useState(caixinha?.nome  || "");
-  const [valor, setValor] = useState(caixinha ? String(caixinha.valor) : "");
-  const [meta,  setMeta]  = useState(caixinha ? String(caixinha.meta || "") : "");
-  const [novoValor, setNovoValor] = useState(""); // campo "atualizar valor"
-  const [rendimento, setRendimento] = useState(""); // quanto rendeu
-
-  // Valor exibido como "atual" na edição
-  const valorAtual = caixinha?.valor || 0;
-  const totalRendimentos = caixinha?.totalRendimentos || 0;
+  const [nome,     setNome]     = useState(caixinha?.nome || "");
+  const [investido,setInvestido]= useState(caixinha ? String(caixinha.investido || caixinha.valor) : "");
+  const [valorAtual,setValorAtual]= useState(caixinha ? String(caixinha.valor) : "");
+  const [meta,     setMeta]     = useState(caixinha ? String(caixinha.meta || "") : "");
+  const [dataCriacao,setDataCriacao]= useState(caixinha?.dataCriacao || todayStr());
+  // Campos para lançar novo mês
+  const [mesRend,  setMesRend]  = useState(todayStr().slice(0,7)); // YYYY-MM
+  const [valorRend,setValorRend]= useState("");
+  const historico = caixinha?.historico || [];
 
   function handleSave() {
-    const v = parseFloat(isNew ? valor : novoValor || valor);
-    if (!nome.trim() || isNaN(v) || v < 0) { alert("Preencha nome e valor."); return; }
-    const rend = parseFloat(rendimento) || 0;
+    if (!nome.trim()) { alert("Preencha o nome."); return; }
+    const inv = parseFloat(investido) || 0;
+    const val = parseFloat(valorAtual) || inv;
     onSave({
       id: caixinha?.id || Date.now(),
       nome: nome.trim(),
-      valor: v,
+      valor: val,
+      investido: inv,
       meta: parseFloat(meta) || 0,
-      totalRendimentos: (caixinha?.totalRendimentos || 0) + rend,
+      dataCriacao,
+      historico: caixinha?.historico || [],
     });
   }
 
+  function handleAddRend() {
+    const v = parseFloat(valorRend);
+    if (!v || v <= 0 || !mesRend) { alert("Preencha mês e valor rendido."); return; }
+    // Evita duplicar o mesmo mês
+    if (historico.find(h => h.mes === mesRend)) {
+      if (!window.confirm(`Já existe lançamento para ${monthLabel(mesRend)}. Substituir?`)) return;
+      const novoHist = historico.filter(h => h.mes !== mesRend);
+      novoHist.push({ mes: mesRend, valor: v });
+      const totalRend = novoHist.reduce((s, h) => s + h.valor, 0);
+      const novoValor = parseFloat(investido) + totalRend;
+      onSave({ ...caixinha, historico: novoHist, valor: novoValor });
+      return;
+    }
+    const novoHist = [...historico, { mes: mesRend, valor: v }];
+    const totalRend = novoHist.reduce((s, h) => s + h.valor, 0);
+    const novoValor = parseFloat(investido||caixinha.investido||caixinha.valor) + totalRend;
+    onSave({ ...caixinha, historico: novoHist, valor: novoValor });
+  }
+
+  function handleDelRend(mes) {
+    const novoHist = historico.filter(h => h.mes !== mes);
+    const totalRend = novoHist.reduce((s, h) => s + h.valor, 0);
+    const novoValor = parseFloat(caixinha.investido || caixinha.valor) + totalRend;
+    onSave({ ...caixinha, historico: novoHist, valor: novoValor });
+  }
+
+  const totalRendido = historico.reduce((s, h) => s + h.valor, 0);
+  const inv = parseFloat(investido) || 0;
+  const rentPct = inv > 0 ? ((totalRendido / inv) * 100).toFixed(2) : 0;
+
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.55)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ width:"100%", maxWidth:400, background:T.card, borderRadius:18, padding:22, border:`0.5px solid ${T.border}` }}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.6)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:12, overflowY:"auto" }}>
+      <div style={{ width:"100%", maxWidth:420, background:T.card, borderRadius:18, padding:20, border:`0.5px solid ${T.border}`, maxHeight:"90vh", overflowY:"auto" }}>
+
+        {/* HEADER */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ fontSize:16, fontWeight:700, color:T.text }}>{isNew ? "🐷 Nova caixinha" : `🐷 ${caixinha.nome}`}</div>
-          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:T.textMuted }}>✕</button>
+          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:T.textMuted }}>✕</button>
         </div>
 
+        {/* CAMPOS BASE */}
         <FG label="Nome" T={T}>
-          <input style={iStyle(T)} type="text" placeholder="Ex: Viagem, Reserva..." value={nome} onChange={e=>setNome(e.target.value)}/>
+          <input style={iStyle(T)} type="text" placeholder="Ex: Minha Reserva..." value={nome} onChange={e=>setNome(e.target.value)}/>
         </FG>
-
-        {isNew ? (
-          <FG label="Valor inicial (R$)" T={T}>
-            <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <FG label="Valor investido (R$)" T={T}>
+            <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={investido} onChange={e=>setInvestido(e.target.value)}/>
           </FG>
-        ) : (
-          <>
-            {/* VALOR ATUAL + ATUALIZAR */}
-            <div style={{ background:T.metric, borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
-              <div style={{ fontSize:11, color:T.textMuted, marginBottom:2 }}>Valor atual</div>
-              <div style={{ fontSize:22, fontWeight:700, color:"#534AB7" }}>{fmtBRL(valorAtual)}</div>
-              {totalRendimentos > 0 && (
-                <div style={{ fontSize:11, color:"#1D9E75", marginTop:4 }}>
-                  📈 Total rendido: <strong>{fmtBRL(totalRendimentos)}</strong>
-                  {valorAtual > 0 && <span style={{ marginLeft:6, color:T.textMuted }}>({((totalRendimentos/valorAtual)*100).toFixed(1)}% do valor atual)</span>}
-                </div>
-              )}
+          <FG label="Data de criação" T={T}>
+            <input style={iStyle(T)} type="month" value={dataCriacao.slice(0,7)} onChange={e=>setDataCriacao(e.target.value+"-01")}/>
+          </FG>
+          <FG label="Meta (R$) — opcional" T={T}>
+            <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={meta} onChange={e=>setMeta(e.target.value)}/>
+          </FG>
+        </div>
+
+        {/* RESUMO se já tem histórico */}
+        {!isNew && totalRendido > 0 && (
+          <div style={{ background:"#E1F5EE", border:"0.5px solid #1D9E75", borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, textAlign:"center" }}>
+              <div><div style={{ fontSize:10, color:"#085041", marginBottom:2 }}>Investido</div><div style={{ fontSize:13, fontWeight:700, color:"#085041" }}>{fmtBRL(inv)}</div></div>
+              <div><div style={{ fontSize:10, color:"#085041", marginBottom:2 }}>Total rendido</div><div style={{ fontSize:13, fontWeight:700, color:"#1D9E75" }}>{fmtBRL(totalRendido)}</div></div>
+              <div><div style={{ fontSize:10, color:"#085041", marginBottom:2 }}>Rentab.</div><div style={{ fontSize:13, fontWeight:700, color:"#1D9E75" }}>{rentPct}%</div></div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <FG label="Novo valor (R$)" T={T}>
-                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder={String(valorAtual)} min="0" step="0.01" value={novoValor} onChange={e=>setNovoValor(e.target.value)}/>
-              </FG>
-              <FG label="Rendeu este mês (R$)" T={T}>
-                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={rendimento} onChange={e=>setRendimento(e.target.value)}/>
-              </FG>
-            </div>
-            {novoValor && rendimento && (
-              <div style={{ background:"#E1F5EE", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#085041", marginBottom:10 }}>
-                💡 Novo valor: <strong>{fmtBRL(parseFloat(novoValor))}</strong> · Total rendido acumulado: <strong>{fmtBRL((caixinha.totalRendimentos||0)+parseFloat(rendimento))}</strong>
-              </div>
-            )}
-          </>
+          </div>
         )}
 
-        <FG label="Meta (R$) — opcional" T={T}>
-          <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={meta} onChange={e=>setMeta(e.target.value)}/>
-        </FG>
+        {/* LANÇAR RENDIMENTO MENSAL */}
+        {!isNew && (
+          <div style={{ background:T.bg2, borderRadius:10, padding:14, marginBottom:12 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:T.textMuted, textTransform:"uppercase", letterSpacing:".05em", marginBottom:10 }}>📅 Lançar rendimento do mês</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:8 }}>
+              <FG label="Mês" T={T}>
+                <input style={iStyle(T)} type="month" value={mesRend} onChange={e=>setMesRend(e.target.value)}/>
+              </FG>
+              <FG label="Valor rendido (R$)" T={T}>
+                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valorRend} onChange={e=>setValorRend(e.target.value)}/>
+              </FG>
+            </div>
+            <button onClick={handleAddRend} style={{ width:"100%", padding:9, background:"#1D9E75", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}>
+              ✓ Confirmar rendimento
+            </button>
+          </div>
+        )}
+
+        {/* HISTÓRICO DE RENDIMENTOS */}
+        {!isNew && historico.length > 0 && (
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:T.textMuted, textTransform:"uppercase", letterSpacing:".05em", marginBottom:8 }}>Histórico mensal</div>
+            {[...historico].sort((a,b)=>a.mes.localeCompare(b.mes)).map(h => (
+              <div key={h.mes} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`0.5px solid ${T.border}` }}>
+                <div style={{ fontSize:13, color:T.text, fontWeight:500 }}>{monthLabel(h.mes)}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#1D9E75" }}>{fmtBRL(h.valor)}</div>
+                  <button onClick={()=>handleDelRend(h.mes)} style={{ background:"none", border:"none", color:T.textMuted, cursor:"pointer", fontSize:12 }}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display:"flex", gap:8, marginTop:4 }}>
           <button onClick={handleSave} style={{ flex:2, padding:11, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:600, cursor:"pointer" }}>
-            Salvar
+            Salvar dados
           </button>
-          <button onClick={onClose} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
+          <button onClick={onClose} style={{ ...bSm(T), flex:1 }}>Fechar</button>
         </div>
       </div>
     </div>
   );
 }
 
+// ============================================================
+// CAIXINHAS
+// ============================================================
 function Caixinhas({ data, updateData, T }) {
   const caixinhas = data.caixinhas || [];
-  const [modal, setModal] = useState(null); // null | "nova" | objeto caixinha
+  const [modal, setModal] = useState(null);
+
+  // Inicializa com os dados reais do Nubank se ainda não existirem
+  useEffect(() => {
+    if (caixinhas.length > 0) return; // já tem dados
+    const inicial = [
+      { id:1, nome:"Minha Carteira",    investido:1000.00,  valor:1033.35, meta:0, dataCriacao:"2026-01-01",
+        historico:[{mes:"2026-01",valor:0.43},{mes:"2026-02",valor:7.80},{mes:"2026-03",valor:9.62},{mes:"2026-04",valor:8.83},{mes:"2026-05",valor:6.67}] },
+      { id:2, nome:"Minha Reserva",     investido:7000.00,  valor:7401.32, meta:0, dataCriacao:"2026-01-01",
+        historico:[{mes:"2026-01",valor:11.58},{mes:"2026-02",valor:70.13},{mes:"2026-03",valor:83.11},{mes:"2026-04",valor:79.25},{mes:"2026-05",valor:59.04}] },
+      { id:3, nome:"Resgatar em Julho", investido:3500.00,  valor:3650.67, meta:0, dataCriacao:"2026-01-01",
+        historico:[{mes:"2026-01",valor:3.88},{mes:"2026-02",valor:37.07},{mes:"2026-03",valor:41.18},{mes:"2026-04",valor:39.28},{mes:"2026-05",valor:29.26}] },
+      { id:4, nome:"Paz Mental",        investido:3016.32,  valor:3045.18, meta:0, dataCriacao:"2026-01-01",
+        historico:[{mes:"2026-01",valor:125.35},{mes:"2026-02",valor:30.08},{mes:"2026-03",valor:35.25},{mes:"2026-04",valor:33.62},{mes:"2026-05",valor:25.14}] },
+    ];
+    updateData(d => { d.caixinhas = inicial; return d; });
+  }, []);
 
   function handleSave(c) {
     updateData(d => {
@@ -539,61 +614,139 @@ function Caixinhas({ data, updateData, T }) {
     updateData(d => { d.caixinhas = d.caixinhas.filter(c => c.id !== id); return d; });
   }
 
+  function exportarCaixinhas() {
+    if (caixinhas.length === 0) { alert("Nenhuma caixinha para exportar."); return; }
+    // Cabeçalho geral
+    const linhas = [];
+    linhas.push(["FinCheck — Caixinhas Nubank", "", "", "", ""]);
+    linhas.push(["Exportado em", new Date().toLocaleDateString("pt-BR"), "", "", ""]);
+    linhas.push([""]);
+
+    caixinhas.forEach(c => {
+      const hist = [...(c.historico||[])].sort((a,b)=>a.mes.localeCompare(b.mes));
+      const totalRend = hist.reduce((s,h)=>s+h.valor,0);
+      const rentPct = c.investido > 0 ? ((totalRend/c.investido)*100).toFixed(2) : 0;
+
+      linhas.push([`CAIXINHA: ${c.nome}`, "", "", "", ""]);
+      linhas.push(["Valor investido", fmtBRL(c.investido||c.valor).replace("R$ ",""), "", "", ""]);
+      linhas.push(["Valor atual", fmtBRL(c.valor).replace("R$ ",""), "", "", ""]);
+      linhas.push(["Total rendido", fmtBRL(totalRend).replace("R$ ",""), "", "", ""]);
+      linhas.push(["Rentabilidade acumulada", rentPct+"%", "", "", ""]);
+      linhas.push([""]);
+      linhas.push(["Mês", "Valor rendido (R$)", "", "", ""]);
+      hist.forEach(h => linhas.push([monthLabel(h.mes), String(h.valor).replace(".",","), "", "", ""]));
+      linhas.push([""]);
+    });
+
+    // Resumo final
+    const totalInv = caixinhas.reduce((s,c)=>s+(c.investido||c.valor),0);
+    const totalAtual = caixinhas.reduce((s,c)=>s+c.valor,0);
+    const totalRend = caixinhas.reduce((s,c)=>s+(c.historico||[]).reduce((a,h)=>a+h.valor,0),0);
+    linhas.push(["RESUMO GERAL", "", "", "", ""]);
+    linhas.push(["Total investido", fmtBRL(totalInv).replace("R$ ",""), "", "", ""]);
+    linhas.push(["Total atual", fmtBRL(totalAtual).replace("R$ ",""), "", "", ""]);
+    linhas.push(["Total rendido", fmtBRL(totalRend).replace("R$ ",""), "", "", ""]);
+
+    const csv = linhas.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF"+csv], { type:"text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download="caixinhas_nubank.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const total = caixinhas.reduce((s, c) => s + c.valor, 0);
-  const totalRendido = caixinhas.reduce((s, c) => s + (c.totalRendimentos || 0), 0);
+  const totalInvestido = caixinhas.reduce((s, c) => s + (c.investido || c.valor), 0);
+  const totalRendido = caixinhas.reduce((s, c) => s + (c.historico||[]).reduce((a,h)=>a+h.valor,0), 0);
+  const rentGeral = totalInvestido > 0 ? ((totalRendido/totalInvestido)*100).toFixed(2) : 0;
 
   return (
     <div>
-      {/* MODAL */}
-      {modal && (
-        <ModalCaixinha
-          caixinha={modal === "nova" ? null : modal}
-          T={T}
-          onSave={handleSave}
-          onClose={() => setModal(null)}
-        />
-      )}
+      {modal && <ModalCaixinha caixinha={modal==="nova"?null:modal} T={T} onSave={handleSave} onClose={()=>setModal(null)}/>}
 
-      {/* RESUMO */}
+      {/* RESUMO GERAL */}
       <Card T={T}>
         <ST T={T}>Total guardado</ST>
         <div style={{ fontSize:28, fontWeight:700, color:"#534AB7", marginBottom:4 }}>{fmtBRL(total)}</div>
-        <div style={{ fontSize:12, color:T.textMuted, marginBottom: totalRendido>0?8:0 }}>{caixinhas.length} caixinha{caixinhas.length!==1?"s":""}</div>
-        {totalRendido > 0 && (
-          <div style={{ background:"#E1F5EE", borderRadius:8, padding:"8px 12px", fontSize:13, color:"#085041", display:"flex", justifyContent:"space-between" }}>
-            <span>📈 Total rendido (todas)</span>
-            <strong>{fmtBRL(totalRendido)}</strong>
+        <div style={{ fontSize:12, color:T.textMuted, marginBottom:10 }}>{caixinhas.length} caixinha{caixinhas.length!==1?"s":""}</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:10 }}>
+          <div style={{ background:T.metric, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+            <div style={{ fontSize:10, color:T.textMuted, marginBottom:2 }}>Investido</div>
+            <div style={{ fontSize:12, fontWeight:600, color:"#185FA5" }}>{fmtBRL(totalInvestido)}</div>
           </div>
-        )}
+          <div style={{ background:T.metric, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+            <div style={{ fontSize:10, color:T.textMuted, marginBottom:2 }}>Total rendido</div>
+            <div style={{ fontSize:12, fontWeight:600, color:"#1D9E75" }}>{fmtBRL(totalRendido)}</div>
+          </div>
+          <div style={{ background:T.metric, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+            <div style={{ fontSize:10, color:T.textMuted, marginBottom:2 }}>Rentab. geral</div>
+            <div style={{ fontSize:12, fontWeight:600, color:"#1D9E75" }}>{rentGeral}%</div>
+          </div>
+        </div>
+        <button onClick={exportarCaixinhas} style={{ width:"100%", padding:9, background:"#1D9E75", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+          📥 Exportar todas para Excel
+        </button>
       </Card>
 
       {/* LISTA */}
       {caixinhas.map(c => {
-        const pct = c.meta > 0 ? Math.min(100, Math.round(c.valor / c.meta * 100)) : null;
+        const hist = [...(c.historico||[])].sort((a,b)=>a.mes.localeCompare(b.mes));
+        const totalRend = hist.reduce((s,h)=>s+h.valor,0);
+        const inv = c.investido || c.valor;
+        const rentPct = inv > 0 ? ((totalRend/inv)*100).toFixed(2) : 0;
+        const pct = c.meta > 0 ? Math.min(100, Math.round(c.valor/c.meta*100)) : null;
+        const ultimoMes = hist.length > 0 ? hist[hist.length-1] : null;
+
         return (
           <Card key={c.id} T={T}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-              <div>
+              <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:15, fontWeight:600, color:T.text }}>🐷 {c.nome}</div>
-                <div style={{ fontSize:22, fontWeight:700, color:"#534AB7", marginTop:4 }}>{fmtBRL(c.valor)}</div>
-                {c.meta > 0 && <div style={{ fontSize:12, color:T.textMuted, marginTop:2 }}>Meta: {fmtBRL(c.meta)}</div>}
-                {(c.totalRendimentos||0) > 0 && (
-                  <div style={{ fontSize:12, color:"#1D9E75", marginTop:4 }}>
-                    📈 Rendeu: <strong>{fmtBRL(c.totalRendimentos)}</strong>
-                    <span style={{ color:T.textMuted, marginLeft:4 }}>({((c.totalRendimentos/c.valor)*100).toFixed(1)}%)</span>
-                  </div>
-                )}
+                <div style={{ fontSize:22, fontWeight:700, color:"#534AB7", marginTop:2 }}>{fmtBRL(c.valor)}</div>
+                <div style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>Investido: {fmtBRL(inv)}</div>
               </div>
-              <div style={{ display:"flex", gap:6 }}>
+              <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                 <button style={bSm(T)} onClick={() => setModal(c)}>Editar</button>
                 <button style={{ ...bSm(T), color:"#E24B4A", borderColor:"#E24B4A" }} onClick={() => handleDelete(c.id)}>✕</button>
               </div>
             </div>
+
+            {/* MÉTRICAS */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:8 }}>
+              <div style={{ background:T.metric, borderRadius:8, padding:"7px 8px", textAlign:"center" }}>
+                <div style={{ fontSize:9, color:T.textMuted, marginBottom:2 }}>Total rendido</div>
+                <div style={{ fontSize:12, fontWeight:600, color:"#1D9E75" }}>{fmtBRL(totalRend)}</div>
+              </div>
+              <div style={{ background:T.metric, borderRadius:8, padding:"7px 8px", textAlign:"center" }}>
+                <div style={{ fontSize:9, color:T.textMuted, marginBottom:2 }}>Rentab.</div>
+                <div style={{ fontSize:12, fontWeight:600, color:"#1D9E75" }}>{rentPct}%</div>
+              </div>
+              <div style={{ background:T.metric, borderRadius:8, padding:"7px 8px", textAlign:"center" }}>
+                <div style={{ fontSize:9, color:T.textMuted, marginBottom:2 }}>Últ. mês</div>
+                <div style={{ fontSize:12, fontWeight:600, color:"#BA7517" }}>{ultimoMes ? fmtBRL(ultimoMes.valor) : "—"}</div>
+              </div>
+            </div>
+
+            {/* MINI GRÁFICO DE BARRAS */}
+            {hist.length > 1 && (
+              <div style={{ marginBottom:8 }}>
+                <div style={{ fontSize:9, color:T.textMuted, marginBottom:4 }}>Rendimento mensal</div>
+                <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
+                  {hist.map(h => {
+                    const max = Math.max(...hist.map(x=>x.valor),1);
+                    return (
+                      <div key={h.mes} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                        <div style={{ width:"100%", background:"#1D9E75", borderRadius:"3px 3px 0 0", height:`${(h.valor/max)*32}px`, minHeight:3 }} title={`${monthLabel(h.mes)}: ${fmtBRL(h.valor)}`}/>
+                        <div style={{ fontSize:8, color:T.textMuted, whiteSpace:"nowrap" }}>{monthLabel(h.mes).split("/")[0]}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {pct !== null && (
               <div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.textMuted, marginBottom:4 }}>
-                  <span>Progresso</span><span>{pct}%</span>
-                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.textMuted, marginBottom:4 }}><span>Progresso da meta</span><span>{pct}%</span></div>
                 <div style={{ background:T.bg2, borderRadius:99, height:8, overflow:"hidden" }}>
                   <div style={{ width:`${pct}%`, height:"100%", background:pct>=100?"#1D9E75":"#534AB7", borderRadius:99 }}/>
                 </div>
