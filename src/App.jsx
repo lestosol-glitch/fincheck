@@ -728,7 +728,7 @@ function Caixinhas({ data, updateData, T }) {
 
             {/* MINI GRÁFICO DE BARRAS */}
             {hist.length > 1 && (
-              <div style={{ marginBottom:8 }}>
+              <div style={{ marginBottom:0, marginTop:16 }}>
                 <div style={{ fontSize:9, color:T.textMuted, marginBottom:4 }}></div>
                 <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
                   {hist.map(h => {
