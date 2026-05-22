@@ -589,11 +589,11 @@ function Caixinhas({ data, updateData, T }) {
     const inicial = [
       { id:1, nome:"Minha Carteira",    investido:1000.00,  valor:1033.35, meta:0, dataCriacao:"2026-01-01",
         historico:[{mes:"2026-01",valor:0.43},{mes:"2026-02",valor:7.80},{mes:"2026-03",valor:9.62},{mes:"2026-04",valor:8.83},{mes:"2026-05",valor:6.67}] },
-      { id:2, nome:"Minha Reserva",     investido:7000.00,  valor:7401.32, meta:0, dataCriacao:"2026-01-01",
+      { id:2, nome:"Minha Reserva",     investido:7000.00,  valor:7303.11, meta:0, dataCriacao:"2026-01-01",
         historico:[{mes:"2026-01",valor:11.58},{mes:"2026-02",valor:70.13},{mes:"2026-03",valor:83.11},{mes:"2026-04",valor:79.25},{mes:"2026-05",valor:59.04}] },
       { id:3, nome:"Resgatar em Julho", investido:3500.00,  valor:3650.67, meta:0, dataCriacao:"2026-01-01",
         historico:[{mes:"2026-01",valor:3.88},{mes:"2026-02",valor:37.07},{mes:"2026-03",valor:41.18},{mes:"2026-04",valor:39.28},{mes:"2026-05",valor:29.26}] },
-      { id:4, nome:"Paz Mental",        investido:3016.32,  valor:3045.18, meta:0, dataCriacao:"2026-01-01",
+      { id:4, nome:"Paz Mental",        investido:2765.00,  valor:3016.32, meta:0, dataCriacao:"2026-01-01",
         historico:[{mes:"2026-01",valor:125.35},{mes:"2026-02",valor:30.08},{mes:"2026-03",valor:35.25},{mes:"2026-04",valor:33.62},{mes:"2026-05",valor:25.14}] },
     ];
     updateData(d => { d.caixinhas = inicial; return d; });
@@ -729,7 +729,7 @@ function Caixinhas({ data, updateData, T }) {
             {/* MINI GRÁFICO DE BARRAS */}
             {hist.length > 1 && (
               <div style={{ marginBottom:8 }}>
-                <div style={{ fontSize:9, color:T.textMuted, marginBottom:4 }}>Rendimento mensal</div>
+                <div style={{ fontSize:9, color:T.textMuted, marginBottom:4 }}></div>
                 <div style={{ display:"flex", gap:3, alignItems:"flex-end", height:40 }}>
                   {hist.map(h => {
                     const max = Math.max(...hist.map(x=>x.valor),1);
