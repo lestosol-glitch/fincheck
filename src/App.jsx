@@ -259,35 +259,91 @@ function QuickAdd({ data, updateData, T, onClose }) {
 // DASHBOARD
 // ============================================================
 function Dashboard({ data, T }) {
-  const mk=currentMonthKey(),month=data.transactions.filter(t=>monthKey(t.date)===mk);
-  const income=month.filter(t=>t.type==="income").reduce((s,t)=>s+t.value,0);
-  const expense=month.filter(t=>t.type==="expense").reduce((s,t)=>s+t.value,0);
-  const totalIn=data.transactions.filter(t=>t.type==="income").reduce((s,t)=>s+t.value,0);
-  const totalOut=data.transactions.filter(t=>t.type==="expense").reduce((s,t)=>s+t.value,0);
-  const overLimit=data.limit&&expense>data.limit;
-  const recent=[...data.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
-  const byCategory={};
-  month.filter(t=>t.type==="expense").forEach(t=>{byCategory[t.category]=(byCategory[t.category]||0)+t.value;});
-  const catLabels=Object.keys(byCategory),catValues=Object.values(byCategory),catTotal=catValues.reduce((a,b)=>a+b,0);
-  const last6=[];
-  for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);const mk2=d.toISOString().slice(0,7),txs=data.transactions.filter(t=>monthKey(t.date)===mk2);last6.push({label:monthLabel(mk2),income:txs.filter(t=>t.type==="income").reduce((s,t)=>s+t.value,0),expense:txs.filter(t=>t.type==="expense").reduce((s,t)=>s+t.value,0)});}
-  const maxBar=Math.max(...last6.map(m=>Math.max(m.income,m.expense)),1);
-  const totalCaixinhas=(data.caixinhas||[]).reduce((s,c)=>s+c.valor,0);
-  const totalFIIs=(data.fiis||[]).reduce((s,f)=>s+f.cotas*f.precoAtual,0);
-  // Total dividendos recebidos no mês atual
-  const anoAtual=new Date().getFullYear().toString();
-  const dividendosAno=(data.fiis||[]).reduce((s,f)=>{
-    const rends=f.rendimentos||[];
-    return s+rends.filter(r=>r.data.startsWith(anoAtual)).reduce((a,r)=>a+r.total,0);
-  },0);
+  const mk = currentMonthKey();
+  const anoAtual = new Date().getFullYear().toString();
+
+  // ── TRANSAÇÕES PURAS (excluindo dividendos de FIIs para não misturar) ──
+  // Apenas transações registradas manualmente pelo utilizador
+  const txMes     = data.transactions.filter(t => monthKey(t.date) === mk);
+  const income    = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
+  const expense   = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  const saldoMes  = income - expense;
+
+  // Saldo acumulado histórico (todas as transações de sempre)
+  const totalInAll  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
+  const totalOutAll = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  const saldoGeral  = totalInAll - totalOutAll;
+
+  const overLimit = data.limit && expense > data.limit;
+  const recent = [...data.transactions].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
+
+  // Gráfico pizza — só saídas do mês
+  const byCategory = {};
+  txMes.filter(t => t.type === "expense").forEach(t => {
+    byCategory[t.category] = (byCategory[t.category] || 0) + t.value;
+  });
+  const catLabels = Object.keys(byCategory);
+  const catValues = Object.values(byCategory);
+  const catTotal  = catValues.reduce((a,b) => a + b, 0);
+
+  // Gráfico barras — últimos 6 meses (só transações)
+  const last6 = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const mk2 = d.toISOString().slice(0, 7);
+    const txs = data.transactions.filter(t => monthKey(t.date) === mk2);
+    last6.push({
+      label:   monthLabel(mk2),
+      income:  txs.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0),
+      expense: txs.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0),
+    });
+  }
+  const maxBar = Math.max(...last6.map(m => Math.max(m.income, m.expense)), 1);
+
+  // ── CAIXINHAS — completamente independente ──
+  const totalCaixinhas  = (data.caixinhas || []).reduce((s,c) => s + c.valor, 0);
+  const totalInvestCaix = (data.caixinhas || []).reduce((s,c) => s + (c.investido || c.valor), 0);
+  const totalRendCaix   = (data.caixinhas || []).reduce((s,c) => s + (c.historico||[]).reduce((a,h) => a + h.valor, 0), 0);
+
+  // ── FIIs — completamente independente ──
+  const totalFIIs    = (data.fiis || []).reduce((s,f) => s + f.cotas * f.precoAtual, 0);
+  const totalInvFIIs = (data.fiis || []).reduce((s,f) => s + f.cotas * f.precoMedio, 0);
+  const divAnoFIIs   = (data.fiis || []).reduce((s,f) => {
+    return s + (f.rendimentos||[]).filter(r => r.data.startsWith(anoAtual)).reduce((a,r) => a + r.total, 0);
+  }, 0);
 
   return (
     <div>
-      {overLimit&&<div style={{ background:"#FAEEDA",border:"0.5px solid #BA7517",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#BA7517" }}>⚠ Atenção: limite de gastos do mês ultrapassado!</div>}
-      <ST T={T}>Gastos — {monthLabel(mk)}</ST>
-      <div style={g3}><MC label="Saldo" value={fmt(totalIn-totalOut)} color="#185FA5" T={T}/><MC label="Entradas" value={fmt(income)} color="#1D9E75" T={T}/><MC label="Saídas" value={fmt(expense)} color="#E24B4A" T={T}/></div>
-      <ST T={T}>Investimentos</ST>
-      <div style={g3}><MC label="Caixinhas" value={fmtBRL(totalCaixinhas)} color="#534AB7" T={T}/><MC label="FIIs (total)" value={fmtBRL(totalFIIs)} color="#BA7517" T={T}/><MC label={`Dividendos ${anoAtual}`} value={fmtBRL(dividendosAno)} color="#1D9E75" T={T}/></div>
+      {overLimit && <div style={{ background:"#FAEEDA",border:"0.5px solid #BA7517",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#BA7517" }}>⚠ Atenção: limite de gastos do mês ultrapassado!</div>}
+
+      {/* SECÇÃO 1 — GASTOS E ENTRADAS (só transações manuais) */}
+      <ST T={T}>Movimentações — {monthLabel(mk)}</ST>
+      <div style={g3}>
+        <MC label="Entradas mês" value={fmt(income)}   color="#1D9E75" T={T}/>
+        <MC label="Saídas mês"   value={fmt(expense)}  color="#E24B4A" T={T}/>
+        <MC label="Saldo mês"    value={fmt(saldoMes)} color={saldoMes>=0?"#185FA5":"#E24B4A"} T={T}/>
+      </div>
+      <div style={{ ...g3, marginTop:-4 }}>
+        <MC label="Total entradas" value={fmt(totalInAll)}  color="#1D9E75" T={T}/>
+        <MC label="Total saídas"   value={fmt(totalOutAll)} color="#E24B4A" T={T}/>
+        <MC label="Saldo geral"    value={fmt(saldoGeral)}  color={saldoGeral>=0?"#185FA5":"#E24B4A"} T={T}/>
+      </div>
+
+      {/* SECÇÃO 2 — CAIXINHAS (independente) */}
+      <ST T={T}>Caixinhas Nubank</ST>
+      <div style={g3}>
+        <MC label="Total atual"   value={fmtBRL(totalCaixinhas)}  color="#534AB7" T={T}/>
+        <MC label="Total investido" value={fmtBRL(totalInvestCaix)} color="#185FA5" T={T}/>
+        <MC label="Total rendido" value={fmtBRL(totalRendCaix)}   color="#1D9E75" T={T}/>
+      </div>
+
+      {/* SECÇÃO 3 — FIIs (independente) */}
+      <ST T={T}>FIIs — Fundos Imobiliários</ST>
+      <div style={g3}>
+        <MC label="Patrimônio"    value={fmtBRL(totalFIIs)}    color="#BA7517" T={T}/>
+        <MC label="Investido"     value={fmtBRL(totalInvFIIs)} color="#185FA5" T={T}/>
+        <MC label={`Dividendos ${anoAtual}`} value={fmtBRL(divAnoFIIs)} color="#1D9E75" T={T}/>
+      </div>
 
       <Card T={T}>
         <ST T={T}>Gastos por categoria — mês atual</ST>
