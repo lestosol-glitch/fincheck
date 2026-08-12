@@ -917,47 +917,66 @@ function FIIs({ data, updateData, T }) {
 
       {/* LISTA DE FIIs */}
       {fiis.map(f => {
-        const p=f.cotas*f.precoAtual, inv=f.cotas*f.precoMedio, lc=p-inv;
-        const lcP=inv>0?(lc/inv*100).toFixed(1):0;
-        const divAno=(f.rendimentos||[]).filter(r=>r.data.startsWith(anoAtual)).reduce((a,r)=>a+r.total,0);
-        const ym=f.precoAtual>0&&f.ultimoDividendo>0?((f.ultimoDividendo/f.precoAtual)*100).toFixed(2):null;
+        const totalDivRecebidos = (f.rendimentos||[]).reduce((s,r)=>s+r.total,0);
         const isOpen = activeTab === f.id;
 
         return (
           <Card key={f.id} T={T}>
-            {/* CABEÇALHO */}
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 }}>
-              <div>
-                <div style={{ fontSize:16,fontWeight:700,color:T.text }}>{f.codigo}</div>
-                <div style={{ fontSize:12,color:T.textMuted,marginTop:2 }}>{f.cotas} cotas · Médio: {fmtBRL(f.precoMedio)}</div>
-              </div>
+            {/* CABEÇALHO — código + botões Editar e Excluir */}
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+              <div style={{ fontSize:18,fontWeight:700,color:T.text }}>{f.codigo}</div>
               <div style={{ display:"flex",gap:6 }}>
-                <button style={bSm(T)} onClick={()=>handleEdit(f)}>Editar</button>
+                <button style={bSm(T)} onClick={()=>handleEdit(f)}>✏️ Editar</button>
                 <button style={{ ...bSm(T),color:"#E24B4A",borderColor:"#E24B4A" }} onClick={()=>handleDelete(f.id)}>✕</button>
               </div>
             </div>
 
-            {/* MÉTRICAS */}
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
-              {[["Patrimônio",fmtBRL(p),null],["Lucro/Prej.",`${fmtBRL(lc)} (${lcP}%)`,lc>=0?"#1D9E75":"#E24B4A"],["Preço atual",fmtBRL(f.precoAtual),null],["Últ. dividendo/cota",fmtBRL(f.ultimoDividendo||0),"#BA7517"],["Dividendos "+anoAtual,fmtBRL(divAno),"#1D9E75"],ym?["Yield mensal",`${ym}%`,"#BA7517"]:null].filter(Boolean).map(([l,v,c])=>(
-                <div key={l} style={{ background:T.metric,borderRadius:8,padding:"8px 10px" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>{l}</div><div style={{ fontSize:13,fontWeight:600,color:c||T.text }}>{v}</div></div>
-              ))}
+            {/* QUADRO DE RESUMO */}
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12 }}>
+              <div style={{ background:T.metric,borderRadius:10,padding:"10px 12px" }}>
+                <div style={{ fontSize:10,color:T.textMuted,marginBottom:4,textTransform:"uppercase",fontWeight:600 }}>Cotas</div>
+                <div style={{ fontSize:20,fontWeight:700,color:T.text }}>{f.cotas}</div>
+                <div style={{ fontSize:11,color:T.textMuted,marginTop:2 }}>Médio: {fmtBRL(f.precoMedio)}</div>
+              </div>
+              <div style={{ background:"#FAEEDA",borderRadius:10,padding:"10px 12px" }}>
+                <div style={{ fontSize:10,color:"#BA7517",marginBottom:4,textTransform:"uppercase",fontWeight:600 }}>Dividendos recebidos</div>
+                <div style={{ fontSize:20,fontWeight:700,color:"#BA7517" }}>{fmtBRL(totalDivRecebidos)}</div>
+                <div style={{ fontSize:11,color:"#BA7517",marginTop:2 }}>{(f.rendimentos||[]).length} lançamento{(f.rendimentos||[]).length!==1?"s":""}</div>
+              </div>
             </div>
 
-            {/* BOTÕES DE AÇÃO */}
+            {/* BOTÃO INCLUIR + VER HISTÓRICO */}
             <div style={{ display:"flex",gap:8,marginBottom: isOpen ? 12 : 0 }}>
-              <button onClick={()=>{ setActiveTab(isOpen&&modalType==="cotas"?null:f.id); setModalType("cotas"); }} style={{ ...bSm(T),flex:1,background:modalType==="cotas"&&isOpen?"#E6F1FB":T.card,color:modalType==="cotas"&&isOpen?"#185FA5":T.text,borderColor:modalType==="cotas"&&isOpen?"#185FA5":T.border }}>
-                ➕ Adicionar cotas
+              <button onClick={()=>{ setActiveTab(isOpen&&modalType==="incluir"?null:f.id); setModalType("incluir"); }} style={{ flex:2,padding:"9px 0",border:`0.5px solid ${modalType==="incluir"&&isOpen?"#1D9E75":T.border}`,borderRadius:8,background:modalType==="incluir"&&isOpen?"#E1F5EE":T.card,color:modalType==="incluir"&&isOpen?"#085041":T.text,cursor:"pointer",fontSize:13,fontWeight:600 }}>
+                ＋ Incluir
               </button>
-              <button onClick={()=>{ setActiveTab(isOpen&&modalType==="rendimento"?null:f.id); setModalType("rendimento"); }} style={{ ...bSm(T),flex:1,background:modalType==="rendimento"&&isOpen?"#FAEEDA":T.card,color:modalType==="rendimento"&&isOpen?"#BA7517":T.text,borderColor:modalType==="rendimento"&&isOpen?"#BA7517":T.border }}>
-                💰 Lançar rendimento
+              <button onClick={()=>{ setActiveTab(isOpen&&modalType==="historico"?null:f.id); setModalType("historico"); }} style={{ flex:1,padding:"9px 0",border:`0.5px solid ${modalType==="historico"&&isOpen?"#185FA5":T.border}`,borderRadius:8,background:modalType==="historico"&&isOpen?"#E6F1FB":T.card,color:modalType==="historico"&&isOpen?"#185FA5":T.text,cursor:"pointer",fontSize:13,fontWeight:600 }}>
+                📋 Histórico
               </button>
             </div>
 
-            {/* PAINEL ADICIONAR COTAS */}
+            {/* PAINEL INCLUIR — escolha entre cotas ou dividendo */}
+            {isOpen && modalType==="incluir" && (
+              <div style={{ background:T.bg2,borderRadius:10,padding:14,marginBottom:8 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:12 }}>O que deseja incluir em {f.codigo}?</div>
+
+                {/* SUB-TABS */}
+                <div style={{ display:"flex",gap:6,marginBottom:14 }}>
+                  <button onClick={()=>setModalType("cotas")} style={{ flex:1,padding:8,border:`0.5px solid ${T.border}`,borderRadius:8,background:T.card,color:T.text,cursor:"pointer",fontSize:13,fontWeight:500 }}>
+                    📈 Nova compra de cotas
+                  </button>
+                  <button onClick={()=>setModalType("rendimento")} style={{ flex:1,padding:8,border:`0.5px solid ${T.border}`,borderRadius:8,background:T.card,color:T.text,cursor:"pointer",fontSize:13,fontWeight:500 }}>
+                    💰 Dividendo recebido
+                  </button>
+                </div>
+                <button onClick={()=>{ setActiveTab(null); setModalType(null); }} style={{ ...bSm(T),width:"100%",textAlign:"center" }}>Cancelar</button>
+              </div>
+            )}
+
+            {/* PAINEL COMPRA DE COTAS */}
             {isOpen && modalType==="cotas" && (
-              <div style={{ background:T.bg2,borderRadius:10,padding:14 }}>
-                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:10 }}>➕ Adicionar cotas a {f.codigo}</div>
+              <div style={{ background:T.bg2,borderRadius:10,padding:14,marginBottom:8 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:10 }}>📈 Nova compra de cotas — {f.codigo}</div>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
                   <FG label="Qtd. de cotas" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="Ex: 10" min="0" value={addCotas} onChange={e=>setAddCotas(e.target.value)}/></FG>
                   <FG label="Preço pago/cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={addPreco} onChange={e=>setAddPreco(e.target.value)}/></FG>
@@ -969,48 +988,81 @@ function FIIs({ data, updateData, T }) {
                 )}
                 <div style={{ display:"flex",gap:8 }}>
                   <button onClick={()=>handleAddCotas(f)} style={{ flex:2,padding:9,background:"#185FA5",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer" }}>Confirmar compra</button>
-                  <button onClick={()=>setModalType(null)} style={{ ...bSm(T),flex:1 }}>Cancelar</button>
+                  <button onClick={()=>setModalType("incluir")} style={{ ...bSm(T),flex:1 }}>← Voltar</button>
                 </div>
               </div>
             )}
 
-            {/* PAINEL RENDIMENTO */}
+            {/* PAINEL DIVIDENDO */}
             {isOpen && modalType==="rendimento" && (
-              <div style={{ background:T.bg2,borderRadius:10,padding:14 }}>
-                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:10 }}>💰 Lançar rendimento de {f.codigo}</div>
+              <div style={{ background:T.bg2,borderRadius:10,padding:14,marginBottom:8 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:10 }}>💰 Dividendo recebido — {f.codigo}</div>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
                   <FG label="Data do pagamento" T={T}><input style={iStyle(T)} type="date" value={rendData} onChange={e=>setRendData(e.target.value)}/></FG>
                   <FG label="Valor por cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.001" value={rendValor} onChange={e=>setRendValor(e.target.value)}/></FG>
                 </div>
                 {rendValor&&(
-                  <div style={{ background:T.metric,borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.textMuted }}>
-                    Total recebido: <strong style={{ color:"#BA7517",fontSize:14 }}>{fmtBRL(f.cotas*parseFloat(rendValor||0))}</strong>
+                  <div style={{ background:"#FAEEDA",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:13,color:"#BA7517",fontWeight:500 }}>
+                    Total a receber: <strong style={{ fontSize:15 }}>{fmtBRL(f.cotas*parseFloat(rendValor||0))}</strong>
+                    <div style={{ fontSize:11,fontWeight:400,marginTop:2 }}>{f.cotas} cotas × {fmtBRL(parseFloat(rendValor))}/cota</div>
                   </div>
                 )}
                 <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12 }}>
                   <input type="checkbox" id={`lancar${f.id}`} checked={rendLancar} onChange={e=>setRendLancar(e.target.checked)} style={{ width:16,height:16,cursor:"pointer" }}/>
-                  <label htmlFor={`lancar${f.id}`} style={{ fontSize:13,color:T.textMuted,cursor:"pointer" }}>Lançar automaticamente como entrada no histórico</label>
+                  <label htmlFor={`lancar${f.id}`} style={{ fontSize:13,color:T.textMuted,cursor:"pointer" }}>Lançar como entrada no histórico de gastos</label>
                 </div>
                 <div style={{ display:"flex",gap:8 }}>
-                  <button onClick={()=>handleRendimento(f)} style={{ flex:2,padding:9,background:"#BA7517",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer" }}>Confirmar rendimento</button>
-                  <button onClick={()=>setModalType(null)} style={{ ...bSm(T),flex:1 }}>Cancelar</button>
+                  <button onClick={()=>handleRendimento(f)} style={{ flex:2,padding:9,background:"#BA7517",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer" }}>Confirmar</button>
+                  <button onClick={()=>setModalType("incluir")} style={{ ...bSm(T),flex:1 }}>← Voltar</button>
                 </div>
+              </div>
+            )}
 
-                {/* HISTÓRICO DE RENDIMENTOS */}
-                {(f.rendimentos||[]).length>0&&(
-                  <div style={{ marginTop:14 }}>
-                    <div style={{ fontSize:11,fontWeight:600,color:T.textMuted,textTransform:"uppercase",letterSpacing:".05em",marginBottom:8 }}>Histórico de rendimentos</div>
-                    {[...(f.rendimentos||[])].sort((a,b)=>b.data.localeCompare(a.data)).map(r=>(
-                      <div key={r.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`0.5px solid ${T.border}`,fontSize:13 }}>
-                        <div>
-                          <div style={{ color:T.text,fontWeight:500 }}>{r.data.split("-").reverse().join("/")}</div>
-                          <div style={{ fontSize:11,color:T.textMuted }}>{fmtBRL(r.valorCota)}/cota</div>
-                        </div>
-                        <div style={{ color:"#BA7517",fontWeight:600 }}>{fmtBRL(r.total)}</div>
+            {/* PAINEL HISTÓRICO DE RENDIMENTOS */}
+            {isOpen && modalType==="historico" && (
+              <div style={{ background:T.bg2,borderRadius:10,padding:14 }}>
+                <div style={{ fontSize:13,fontWeight:600,color:T.text,marginBottom:12 }}>📋 Histórico de rendimentos — {f.codigo}</div>
+                {(f.rendimentos||[]).length===0 ? (
+                  <div style={{ textAlign:"center",color:T.textMuted,fontSize:13,padding:16 }}>Nenhum rendimento lançado ainda.</div>
+                ) : (
+                  <>
+                    {/* CABEÇALHO TABELA */}
+                    <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,marginBottom:6,padding:"0 4px" }}>
+                      {["Data","Cód.","R$/cota","Total"].map(h=>(
+                        <div key={h} style={{ fontSize:10,fontWeight:600,color:T.textMuted,textTransform:"uppercase" }}>{h}</div>
+                      ))}
+                    </div>
+                    {/* LINHAS */}
+                    {[...(f.rendimentos||[])].sort((a,b)=>b.data.localeCompare(a.data)).map((r,i)=>(
+                      <div key={r.id} style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,padding:"8px 4px",borderTop:`0.5px solid ${T.border}`,background:i%2===0?T.metric+"44":"transparent",borderRadius:4 }}>
+                        <div style={{ fontSize:12,color:T.text }}>{r.data.split("-").reverse().join("/")}</div>
+                        <div style={{ fontSize:12,fontWeight:600,color:T.text }}>{f.codigo}</div>
+                        <div style={{ fontSize:12,color:T.textMuted }}>{fmtBRL(r.valorCota)}</div>
+                        <div style={{ fontSize:12,fontWeight:600,color:"#BA7517" }}>{fmtBRL(r.total)}</div>
                       </div>
                     ))}
-                  </div>
+                    {/* TOTAIS */}
+                    <div style={{ marginTop:12,padding:"10px 4px",borderTop:`1.5px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                      <div style={{ fontSize:12,fontWeight:600,color:T.textMuted }}>{(f.rendimentos||[]).length} lançamento{(f.rendimentos||[]).length!==1?"s":""}</div>
+                      <div style={{ fontSize:14,fontWeight:700,color:"#BA7517" }}>Total: {fmtBRL((f.rendimentos||[]).reduce((s,r)=>s+r.total,0))}</div>
+                    </div>
+                    {/* EXPORTAR */}
+                    <button onClick={()=>{
+                      const rends=[...(f.rendimentos||[])].sort((a,b)=>b.data.localeCompare(a.data));
+                      const header=["Data","Código","Valor/cota (R$)","Total (R$)"];
+                      const rows=rends.map(r=>[r.data.split("-").reverse().join("/"),f.codigo,String(r.valorCota).replace(".",","),String(r.total.toFixed(2)).replace(".",",")]);
+                      const total=["","","Total:",rends.reduce((s,r)=>s+r.total,0).toFixed(2).replace(".",",")];
+                      const csv=[header,...rows,[],total].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("
+");
+                      const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+                      const url=URL.createObjectURL(blob);
+                      const a=document.createElement("a");a.href=url;a.download=`historico_${f.codigo}.csv`;a.click();URL.revokeObjectURL(url);
+                    }} style={{ width:"100%",marginTop:10,padding:9,background:"#1D9E75",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer" }}>
+                      📥 Exportar histórico para Excel
+                    </button>
+                  </>
                 )}
+                <button onClick={()=>setModalType(null)} style={{ ...bSm(T),width:"100%",marginTop:8,textAlign:"center" }}>Fechar</button>
               </div>
             )}
           </Card>
