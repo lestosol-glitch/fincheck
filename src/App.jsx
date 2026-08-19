@@ -1052,8 +1052,7 @@ function FIIs({ data, updateData, T }) {
                       const header=["Data","Código","Valor/cota (R$)","Total (R$)"];
                       const rows=rends.map(r=>[r.data.split("-").reverse().join("/"),f.codigo,String(r.valorCota).replace(".",","),String(r.total.toFixed(2)).replace(".",",")]);
                       const total=["","","Total:",rends.reduce((s,r)=>s+r.total,0).toFixed(2).replace(".",",")];
-                      const csv=[header,...rows,[],total].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("
-");
+                      const csv=[header,...rows,[],total].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(";")).join("\n");
                       const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
                       const url=URL.createObjectURL(blob);
                       const a=document.createElement("a");a.href=url;a.download=`historico_${f.codigo}.csv`;a.click();URL.revokeObjectURL(url);
