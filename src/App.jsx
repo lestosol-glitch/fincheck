@@ -263,14 +263,16 @@ function QuickAdd({ data, updateData, T, onClose }) {
 function Dashboard({ data, T, updateData }) {
   const mk = currentMonthKey();
 
-  // Totais históricos — só transações manuais
-  const totalInAll  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
-  const totalOutAll = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
-  const saldoGeral  = totalInAll - totalOutAll;
+  // Totais do mês atual
+  const txMes   = data.transactions.filter(t => monthKey(t.date) === mk);
+  const totalInAll  = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
+  const totalOutAll = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  const expense = totalOutAll;
 
-  // Limite — baseado no mês atual
-  const txMes  = data.transactions.filter(t => monthKey(t.date) === mk);
-  const expense = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  // Saldo geral histórico (todas as transações)
+  const totalInGeral  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
+  const totalOutGeral = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  const saldoGeral    = totalInGeral - totalOutGeral;
   const overLimit = data.limit && expense > data.limit;
 
   // Compromissos do mês
