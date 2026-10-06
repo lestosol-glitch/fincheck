@@ -262,32 +262,38 @@ function QuickAdd({ data, updateData, T, onClose }) {
 // ============================================================
 function Dashboard({ data, T, updateData }) {
   const mk = currentMonthKey();
+  const [showPendentes, setShowPendentes] = useState(false);
 
   // Totais do mês atual
   const txMes   = data.transactions.filter(t => monthKey(t.date) === mk);
-  const totalInAll  = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
-  const totalOutAll = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
-  const expense = totalOutAll;
+  const totalInMes  = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
+  const expense = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
 
-  // Saldo geral histórico (todas as transações)
+  // Saldo geral = todas entradas − todas saídas − fixas pagas
   const totalInGeral  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const totalOutGeral = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
-  const saldoGeral    = totalInGeral - totalOutGeral;
-  const overLimit = data.limit && expense > data.limit;
 
   // Compromissos do mês
   const compromissos = data.compromissos || [];
-
-  // Função global para o onClick dos checkboxes (dentro do JSX map)
-  window.__updateCompromisso = (id, novoPago) => {
-    updateData(d => {
-      d.compromissos = (d.compromissos||[]).map(c => c.id === id ? { ...c, pago: novoPago } : c);
-      return d;
-    });
-  };
+  const pagos = compromissos.filter(c => c.pago && c.pago[mk]);
   const pendentes = compromissos.filter(c => !(c.pago && c.pago[mk]));
   const totalPendente = pendentes.reduce((s,c) => s + c.valor, 0);
-  const saldoLivre = saldoGeral - totalPendente;
+  const totalPago = pagos.reduce((s,c) => s + c.valor, 0);
+
+  // Saldo geral: só desconta fixas marcadas como pagas (não as pendentes)
+  const saldoGeral = totalInGeral - totalOutGeral;
+
+  const overLimit = data.limit && expense > data.limit;
+
+  function togglePago(c) {
+    const pago = c.pago && c.pago[mk];
+    updateData(d => {
+      d.compromissos = (d.compromissos||[]).map(x =>
+        x.id === c.id ? { ...x, pago: { ...(x.pago||{}), [mk]: !pago } } : x
+      );
+      return d;
+    });
+  }
 
   // Gráfico pizza — saídas do mês atual por categoria
   const byCategory = {};
@@ -316,65 +322,58 @@ function Dashboard({ data, T, updateData }) {
     <div>
       {overLimit && <div style={{ background:"#FAEEDA",border:"0.5px solid #BA7517",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:13,color:"#BA7517" }}>⚠ Atenção: limite de gastos do mês ultrapassado!</div>}
 
-      {/* TOTAIS GERAIS */}
+      {/* TOTAIS — mês atual + pendentes clicável + saldo geral */}
       <ST T={T}>Movimentações — {monthLabel(mk)}</ST>
       <div style={g3}>
-        <MC label="Total entradas" value={fmt(totalInAll)}  color="#1D9E75" T={T}/>
-        <MC label="Total saídas"   value={fmt(totalOutAll)} color="#E24B4A" T={T}/>
-        <MC label="Saldo geral"    value={fmt(saldoGeral)}  color={saldoGeral>=0?"#185FA5":"#E24B4A"} T={T}/>
+        <MC label="Total entradas" value={fmt(totalInMes)} color="#1D9E75" T={T}/>
+        <div onClick={()=>compromissos.length>0&&setShowPendentes(true)}
+          style={{ background:T.metric, borderRadius:10, padding:"10px 8px", textAlign:"center", minWidth:0,
+            cursor:compromissos.length>0?"pointer":"default",
+            border:compromissos.length>0?`1.5px solid #F59E0B`:`0.5px solid ${T.border}`,
+            transition:"opacity .15s" }}>
+          <div style={{ fontSize:10, color:T.textMuted, marginBottom:4, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            Pendentes{compromissos.length>0?" 👆":""}
+          </div>
+          <div style={{ fontSize:15, fontWeight:700, color: totalPendente>0?"#F59E0B":"#1D9E75", wordBreak:"break-all" }}>
+            {fmt(totalPendente)}
+          </div>
+          {pendentes.length>0&&<div style={{ fontSize:9,color:"#92400E",marginTop:2 }}>{pendentes.length} item{pendentes.length!==1?"s":""}</div>}
+        </div>
+        <MC label="Saldo geral" value={fmt(saldoGeral)} color={saldoGeral>=0?"#185FA5":"#E24B4A"} T={T}/>
       </div>
 
-      {/* COMPROMISSOS DO MÊS */}
-      {compromissos.length > 0 && (
-        <Card T={T}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <ST T={T}>Compromissos do mês</ST>
-            {pendentes.length === 0 && (
-              <span style={{ fontSize:11, color:"#1D9E75", fontWeight:600 }}>✓ Todos pagos!</span>
-            )}
-          </div>
-
-          {/* LISTA DE COMPROMISSOS */}
-          {compromissos.map(c => {
-            const pago = c.pago && c.pago[mk];
-            return (
-              <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 0", borderBottom:`0.5px solid ${T.border}` }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ width:20, height:20, borderRadius:4, border:`1.5px solid ${pago?"#1D9E75":T.border}`, background:pago?"#1D9E75":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}
-                    onClick={() => {
-                      const novosPagos = { ...(c.pago||{}), [mk]: !pago };
-                      window.__updateCompromisso && window.__updateCompromisso(c.id, novosPagos);
-                    }}>
-                    {pago && <span style={{ color:"#fff", fontSize:12, lineHeight:1 }}>✓</span>}
-                  </div>
-                  <div>
-                    <div style={{ fontSize:13, color: pago ? T.textMuted : T.text, textDecoration: pago?"line-through":"none", fontWeight:500 }}>{c.nome}</div>
-                  </div>
-                </div>
-                <div style={{ fontSize:13, fontWeight:600, color: pago?"#1D9E75":"#E24B4A" }}>
-                  {pago ? "✓ Pago" : `− ${fmt(c.valor)}`}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* SALDO LIVRE */}
-          <div style={{ marginTop:12, padding:"10px 12px", background: saldoLivre >= 0 ? "#E1F5EE" : "#FCEBEB", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div>
-              <div style={{ fontSize:11, color: saldoLivre >= 0 ? "#085041" : "#501313", fontWeight:600 }}>
-                {pendentes.length > 0 ? `Saldo livre estimado` : `Saldo após compromissos`}
-              </div>
-              {pendentes.length > 0 && (
-                <div style={{ fontSize:10, color: saldoLivre >= 0 ? "#1D9E75" : "#E24B4A", marginTop:2 }}>
-                  {pendentes.length} compromisso{pendentes.length!==1?"s":""} pendente{pendentes.length!==1?"s":""}
-                </div>
-              )}
+      {/* MODAL PENDENTES */}
+      {showPendentes && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:900,display:"flex",alignItems:"flex-end",justifyContent:"center" }}
+          onClick={()=>setShowPendentes(false)}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%",maxWidth:480,background:T.card,borderRadius:"18px 18px 0 0",padding:20,maxHeight:"75vh",overflowY:"auto",border:`0.5px solid ${T.border}` }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+              <div style={{ fontSize:15,fontWeight:700,color:T.text }}>📌 Pendentes — {monthLabel(mk)}</div>
+              <button onClick={()=>setShowPendentes(false)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.textMuted }}>✕</button>
             </div>
-            <div style={{ fontSize:18, fontWeight:700, color: saldoLivre >= 0 ? "#1D9E75" : "#E24B4A" }}>
-              {fmt(saldoLivre)}
+            {compromissos.length===0 ? (
+              <div style={{ textAlign:"center",color:T.textMuted,padding:20 }}>Nenhuma despesa fixa cadastrada.</div>
+            ) : compromissos.map(c => {
+              const pago = c.pago && c.pago[mk];
+              return (
+                <div key={c.id} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`0.5px solid ${T.border}` }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                    <div onClick={()=>togglePago(c)}
+                      style={{ width:22,height:22,borderRadius:5,border:`2px solid ${pago?"#1D9E75":"#F59E0B"}`,background:pago?"#1D9E75":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0 }}>
+                      {pago&&<span style={{ color:"#fff",fontSize:13,lineHeight:1 }}>✓</span>}
+                    </div>
+                    <div style={{ fontSize:14,color:pago?T.textMuted:T.text,textDecoration:pago?"line-through":"none",fontWeight:500 }}>{c.nome}</div>
+                  </div>
+                  <div style={{ fontSize:14,fontWeight:700,color:pago?"#1D9E75":"#E24B4A" }}>{pago?"✓ Pago":`− ${fmt(c.valor)}`}</div>
+                </div>
+              );
+            })}
+            <div style={{ marginTop:14,padding:"10px 14px",background:T.bg2,borderRadius:10,display:"flex",justifyContent:"space-between" }}>
+              <span style={{ fontSize:12,color:T.textMuted }}>Total pendente</span>
+              <span style={{ fontSize:14,fontWeight:700,color:"#F59E0B" }}>{fmt(totalPendente)}</span>
             </div>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* GRÁFICO PIZZA */}
@@ -429,20 +428,43 @@ function DonutChart({ values }) {
 // REGISTRAR
 // ============================================================
 function AddTransaction({ data, updateData, T }) {
-  const [type,setType]=useState("income"),[value,setValue]=useState(""),[date,setDate]=useState(todayStr()),[category,setCategory]=useState(data.categories[0]||""),[description,setDescription]=useState(""),[recurring,setRecurring]=useState(false),[saved,setSaved]=useState(false);
-  function handleSave(){const val=parseFloat(value);if(!val||val<=0||!date||!category){alert("Preencha valor, data e categoria.");return;}updateData(d=>{d.transactions.push({id:Date.now(),type,value:val,date,category,description,recurring});return d;});setValue("");setDescription("");setRecurring(false);setSaved(true);setTimeout(()=>setSaved(false),2000);}
+  const [type,setType]=useState("income"),[value,setValue]=useState(""),[date,setDate]=useState(todayStr()),[category,setCategory]=useState(data.categories[0]||""),[description,setDescription]=useState(""),[recurring,setRecurring]=useState(false),[fixa,setFixa]=useState(false),[saved,setSaved]=useState(false);
+
+  function handleSave(){
+    const val=parseFloat(value);
+    if(!val||val<=0||!date||!category){alert("Preencha valor, data e categoria.");return;}
+    updateData(d=>{
+      d.transactions.push({id:Date.now(),type,value:val,date,category,description,recurring});
+      // Se marcou como fixa E é saída, adiciona aos compromissos automaticamente
+      if(fixa && type==="expense"){
+        const nome = description.trim() || category;
+        const jaExiste = (d.compromissos||[]).some(c => c.nome === nome && Math.abs(c.valor - val) < 0.01);
+        if(!jaExiste){
+          d.compromissos = [...(d.compromissos||[]), { id: Date.now()+1, nome, valor: val, pago: {} }];
+        }
+      }
+      return d;
+    });
+    setValue("");setDescription("");setRecurring(false);setFixa(false);setSaved(true);setTimeout(()=>setSaved(false),2500);
+  }
+
   return (
     <Card T={T}><ST T={T}>Nova transação</ST>
-      <div style={{ marginBottom:10 }}><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Tipo</label><div style={{ display:"flex",gap:6 }}><button onClick={()=>setType("income")} style={{ ...tBtn,...(type==="income"?{background:"#E1F5EE",color:"#085041",borderColor:"#1D9E75"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>+ Entrada</button><button onClick={()=>setType("expense")} style={{ ...tBtn,...(type==="expense"?{background:"#FCEBEB",color:"#501313",borderColor:"#E24B4A"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>− Saída</button></div></div>
+      <div style={{ marginBottom:10 }}><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Tipo</label><div style={{ display:"flex",gap:6 }}><button onClick={()=>{setType("income");setFixa(false);}} style={{ ...tBtn,...(type==="income"?{background:"#E1F5EE",color:"#085041",borderColor:"#1D9E75"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>+ Entrada</button><button onClick={()=>setType("expense")} style={{ ...tBtn,...(type==="expense"?{background:"#FCEBEB",color:"#501313",borderColor:"#E24B4A"}:{background:T.input,color:T.textMuted,borderColor:T.border})}}>− Saída</button></div></div>
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
         <FG label="Valor (€)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={value} onChange={e=>setValue(e.target.value)}/></FG>
         <FG label="Data" T={T}><input style={iStyle(T)} type="date" value={date} onChange={e=>setDate(e.target.value)}/></FG>
         <FG label="Categoria" T={T}><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select></FG>
         <FG label="Descrição (opcional)" T={T}><input style={iStyle(T)} type="text" placeholder="Ex: supermercado" value={description} onChange={e=>setDescription(e.target.value)}/></FG>
       </div>
-      <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:8,marginBottom:4 }}><input type="checkbox" id="rec" checked={recurring} onChange={e=>setRecurring(e.target.checked)} style={{ width:16,height:16,cursor:"pointer" }}/><label htmlFor="rec" style={{ fontSize:13,color:T.textMuted,cursor:"pointer" }}>🔄 Transação recorrente (repete todo mês)</label></div>
+      {type==="expense" && (
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:10,padding:"10px 12px",background:"#FFF8E1",borderRadius:8,border:"0.5px solid #F59E0B" }}>
+          <input type="checkbox" id="fixa" checked={fixa} onChange={e=>setFixa(e.target.checked)} style={{ width:18,height:18,cursor:"pointer",accentColor:"#F59E0B" }}/>
+          <label htmlFor="fixa" style={{ fontSize:13,color:"#92400E",cursor:"pointer",fontWeight:500 }}>📌 Despesa fixa mensal (adiciona aos Pendentes)</label>
+        </div>
+      )}
       <button onClick={handleSave} style={{ width:"100%",padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer",marginTop:10 }}>Salvar transação</button>
-      {saved&&<div style={{ textAlign:"center",fontSize:12,marginTop:8,color:"#1D9E75" }}>✓ Transação salva!</div>}
+      {saved&&<div style={{ textAlign:"center",fontSize:12,marginTop:8,color:"#1D9E75" }}>✓ Transação salva!{fixa?" Adicionada aos Pendentes.":""}</div>}
     </Card>
   );
 }
