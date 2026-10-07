@@ -19,6 +19,7 @@ function defaultData() {
     caixinhas: [],
     fiis: [],
     compromissos: [], // { id, nome, valor, pago: { "2026-08": true, ... } }
+    planejados: [],   // { id, nome, valor, mes: "2026-11", pago: false }
     darkMode: false,
   };
 }
@@ -176,6 +177,8 @@ export default function App() {
       categories:   [...prev.categories],
       caixinhas:    [...(prev.caixinhas||[])],
       fiis:         [...(prev.fiis||[])],
+      compromissos: [...(prev.compromissos||[])],
+      planejados:   [...(prev.planejados||[])],
     }));
   }
 
@@ -184,9 +187,9 @@ export default function App() {
   // Mostra tela de bloqueio se não autenticado
   if (!loggedIn) return <AuthScreen onLogin={() => setLoggedIn(true)} dark={dark} />;
 
-  const pages  = ["dashboard","add","history","caixinhas","fiis","categories","compromissos","settings"];
-  const icons  = ["▦","＋","☰","🐷","🏢","◈","📌","⚙"];
-  const labels = ["Início","Registrar","Histórico","Caixinhas","FIIs","Categorias","Fixas","Alertas"];
+  const pages  = ["dashboard","add","history","compromissos","fiis","caixinhas","categories","settings"];
+  const icons  = ["▦","＋","☰","📌","🏢","🐷","◈","⚙"];
+  const labels = ["Início","Registrar","Histórico","Fixas","FIIs","Caixinhas","Categorias","Alertas"];
 
   return (
     <div style={{ maxWidth:680, margin:"0 auto", padding:"16px 10px", fontFamily:"system-ui,sans-serif", fontSize:14, color:T.text, background:T.bg, minHeight:"100vh", overflowX:"hidden", boxSizing:"border-box", width:"100%" }}>
@@ -269,19 +272,15 @@ function Dashboard({ data, T, updateData }) {
   const totalInMes  = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const expense = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
 
-  // Saldo geral = todas entradas − todas saídas − fixas pagas
+  // Saldo geral = todas entradas − todas saídas (igual ao Histórico sem filtro)
   const totalInGeral  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const totalOutGeral = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  const saldoGeral    = totalInGeral - totalOutGeral;
 
-  // Compromissos do mês
+  // Compromissos — mês atual e futuros
   const compromissos = data.compromissos || [];
-  const pagos = compromissos.filter(c => c.pago && c.pago[mk]);
-  const pendentes = compromissos.filter(c => !(c.pago && c.pago[mk]));
+  const pendentes    = compromissos.filter(c => !(c.pago && c.pago[mk]));
   const totalPendente = pendentes.reduce((s,c) => s + c.valor, 0);
-  const totalPago = pagos.reduce((s,c) => s + c.valor, 0);
-
-  // Saldo geral: só desconta fixas marcadas como pagas (não as pendentes)
-  const saldoGeral = totalInGeral - totalOutGeral;
 
   const overLimit = data.limit && expense > data.limit;
 
@@ -1165,12 +1164,29 @@ function FIIs({ data, updateData, T }) {
 // ============================================================
 function Compromissos({ data, updateData, T }) {
   const compromissos = data.compromissos || [];
+  const planejados   = data.planejados   || [];
   const mk = currentMonthKey();
+
+  // --- aba ativa: "fixas" ou "planejados"
+  const [aba, setAba]         = useState("fixas");
+
+  // --- form fixas
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);
   const [nome, setNome]         = useState("");
   const [valor, setValor]       = useState("");
 
+  // --- form planejados
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [editPlanId, setEditPlanId]     = useState(null);
+  const [planNome, setPlanNome]         = useState("");
+  const [planValor, setPlanValor]       = useState("");
+  const [planMes, setPlanMes]           = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth()+1);
+    return d.toISOString().slice(0,7);
+  });
+
+  // ── FIXAS ──
   function handleSave() {
     const v = parseFloat(valor);
     if (!nome.trim() || !v || v <= 0) { alert("Preencha nome e valor."); return; }
@@ -1185,16 +1201,11 @@ function Compromissos({ data, updateData, T }) {
     });
     setNome(""); setValor(""); setShowForm(false); setEditId(null);
   }
-
-  function handleEdit(c) {
-    setEditId(c.id); setNome(c.nome); setValor(String(c.valor)); setShowForm(true);
-  }
-
+  function handleEdit(c) { setEditId(c.id); setNome(c.nome); setValor(String(c.valor)); setShowForm(true); }
   function handleDelete(id) {
     if (!window.confirm("Apagar este compromisso?")) return;
     updateData(d => { d.compromissos = (d.compromissos||[]).filter(c => c.id !== id); return d; });
   }
-
   function togglePago(c) {
     const pago = c.pago && c.pago[mk];
     updateData(d => {
@@ -1205,87 +1216,194 @@ function Compromissos({ data, updateData, T }) {
     });
   }
 
+  // ── PLANEJADOS ──
+  function handleSavePlan() {
+    const v = parseFloat(planValor);
+    if (!planNome.trim() || !v || v <= 0 || !planMes) { alert("Preencha nome, valor e mês."); return; }
+    updateData(d => {
+      const lista = d.planejados || [];
+      if (editPlanId) {
+        d.planejados = lista.map(p => p.id === editPlanId ? { ...p, nome: planNome.trim(), valor: v, mes: planMes } : p);
+      } else {
+        d.planejados = [...lista, { id: Date.now(), nome: planNome.trim(), valor: v, mes: planMes, pago: false }];
+      }
+      return d;
+    });
+    setPlanNome(""); setPlanValor(""); setShowPlanForm(false); setEditPlanId(null);
+  }
+  function handleEditPlan(p) { setEditPlanId(p.id); setPlanNome(p.nome); setPlanValor(String(p.valor)); setPlanMes(p.mes); setShowPlanForm(true); }
+  function handleDeletePlan(id) {
+    if (!window.confirm("Apagar este planejamento?")) return;
+    updateData(d => { d.planejados = (d.planejados||[]).filter(p => p.id !== id); return d; });
+  }
+  function togglePlanPago(p) {
+    updateData(d => {
+      d.planejados = (d.planejados||[]).map(x => x.id === p.id ? { ...x, pago: !x.pago } : x);
+      return d;
+    });
+  }
+
+  // totais fixas
   const total = compromissos.reduce((s,c) => s + c.valor, 0);
   const pagos = compromissos.filter(c => c.pago && c.pago[mk]);
   const pendentes = compromissos.filter(c => !(c.pago && c.pago[mk]));
   const totalPago = pagos.reduce((s,c) => s + c.valor, 0);
   const totalPendente = pendentes.reduce((s,c) => s + c.valor, 0);
 
+  // planejados agrupados por mês
+  const planesByMes = {};
+  [...planejados].sort((a,b)=>a.mes.localeCompare(b.mes)).forEach(p => {
+    if (!planesByMes[p.mes]) planesByMes[p.mes] = [];
+    planesByMes[p.mes].push(p);
+  });
+
+  const tabStyle = (active) => ({
+    flex:1, padding:"8px 4px", border:"none", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600,
+    background: active ? "#1a1a1a" : "transparent",
+    color: active ? "#fff" : T.textMuted,
+  });
+
   return (
     <div>
-      {/* RESUMO */}
-      <Card T={T}>
-        <ST T={T}>Compromissos fixos — {monthLabel(mk)}</ST>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:10 }}>
-          <div style={{ background:T.metric, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
-            <div style={{ fontSize:10, color:T.textMuted, marginBottom:2 }}>Total/mês</div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#E24B4A" }}>{fmt(total)}</div>
-          </div>
-          <div style={{ background:"#E1F5EE", borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
-            <div style={{ fontSize:10, color:"#085041", marginBottom:2 }}>Pagos</div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#1D9E75" }}>{fmt(totalPago)}</div>
-          </div>
-          <div style={{ background:"#FCEBEB", borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
-            <div style={{ fontSize:10, color:"#501313", marginBottom:2 }}>Pendentes</div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#E24B4A" }}>{fmt(totalPendente)}</div>
-          </div>
-        </div>
-      </Card>
+      {/* ABAS */}
+      <div style={{ display:"flex", gap:4, background:T.bg2, borderRadius:10, padding:4, marginBottom:14, border:`0.5px solid ${T.border}` }}>
+        <button style={tabStyle(aba==="fixas")} onClick={()=>setAba("fixas")}>📌 Despesas Fixas</button>
+        <button style={tabStyle(aba==="planejados")} onClick={()=>setAba("planejados")}>🗓 Planejamento</button>
+      </div>
 
-      {/* LISTA */}
-      {compromissos.length === 0 ? (
-        <Emp T={T}>Nenhum compromisso cadastrado ainda.</Emp>
-      ) : (
+      {/* ══ ABA FIXAS ══ */}
+      {aba === "fixas" && (<>
         <Card T={T}>
-          <ST T={T}>Lista</ST>
-          {compromissos.map(c => {
-            const pago = c.pago && c.pago[mk];
-            return (
-              <div key={c.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`0.5px solid ${T.border}` }}>
-                {/* CHECKBOX */}
-                <div onClick={() => togglePago(c)} style={{ width:22, height:22, borderRadius:6, border:`1.5px solid ${pago?"#1D9E75":T.border}`, background:pago?"#1D9E75":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
-                  {pago && <span style={{ color:"#fff", fontSize:13, lineHeight:1 }}>✓</span>}
+          <ST T={T}>Compromissos fixos — {monthLabel(mk)}</ST>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:10 }}>
+            <div style={{ background:T.metric, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:T.textMuted, marginBottom:2 }}>Total/mês</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"#E24B4A" }}>{fmt(total)}</div>
+            </div>
+            <div style={{ background:"#E1F5EE", borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"#085041", marginBottom:2 }}>Pagos</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"#1D9E75" }}>{fmt(totalPago)}</div>
+            </div>
+            <div style={{ background:"#FCEBEB", borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
+              <div style={{ fontSize:10, color:"#501313", marginBottom:2 }}>Pendentes</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"#E24B4A" }}>{fmt(totalPendente)}</div>
+            </div>
+          </div>
+        </Card>
+
+        {compromissos.length === 0 ? (
+          <Emp T={T}>Nenhuma despesa fixa cadastrada ainda.</Emp>
+        ) : (
+          <Card T={T}>
+            <ST T={T}>Lista</ST>
+            {compromissos.map(c => {
+              const pago = c.pago && c.pago[mk];
+              return (
+                <div key={c.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`0.5px solid ${T.border}` }}>
+                  <div onClick={() => togglePago(c)} style={{ width:22, height:22, borderRadius:6, border:`1.5px solid ${pago?"#1D9E75":T.border}`, background:pago?"#1D9E75":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
+                    {pago && <span style={{ color:"#fff", fontSize:13, lineHeight:1 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:500, color:pago?T.textMuted:T.text, textDecoration:pago?"line-through":"none" }}>{c.nome}</div>
+                    <div style={{ fontSize:11, color:T.textMuted }}>{pago ? "✓ Pago este mês" : "Pendente"}</div>
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:600, color:pago?"#1D9E75":"#E24B4A" }}>{fmt(c.valor)}</div>
+                  <button onClick={() => handleEdit(c)} style={{ background:"none", border:"none", color:T.textMuted, cursor:"pointer", fontSize:14, padding:4 }}>✏️</button>
+                  <button onClick={() => handleDelete(c.id)} style={{ background:"none", border:"none", color:"#E24B4A", cursor:"pointer", fontSize:14, padding:4 }}>✕</button>
                 </div>
-                {/* INFO */}
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:500, color:pago?T.textMuted:T.text, textDecoration:pago?"line-through":"none" }}>{c.nome}</div>
-                  <div style={{ fontSize:11, color:T.textMuted }}>{pago ? "✓ Pago este mês" : "Pendente"}</div>
-                </div>
-                {/* VALOR */}
-                <div style={{ fontSize:14, fontWeight:600, color:pago?"#1D9E75":"#E24B4A" }}>{fmt(c.valor)}</div>
-                {/* BOTÕES */}
-                <button onClick={() => handleEdit(c)} style={{ background:"none", border:"none", color:T.textMuted, cursor:"pointer", fontSize:14, padding:4 }}>✏️</button>
-                <button onClick={() => handleDelete(c.id)} style={{ background:"none", border:"none", color:"#E24B4A", cursor:"pointer", fontSize:14, padding:4 }}>✕</button>
+              );
+            })}
+          </Card>
+        )}
+
+        {showForm && (
+          <Card T={T}>
+            <ST T={T}>{editId ? "Editar compromisso" : "Novo compromisso"}</ST>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+              <FG label="Nome" T={T}>
+                <input style={iStyle(T)} type="text" placeholder="Ex: Aluguel, Celular..." value={nome} onChange={e=>setNome(e.target.value)}/>
+              </FG>
+              <FG label="Valor (€)" T={T}>
+                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/>
+              </FG>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={handleSave} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
+              <button onClick={()=>{setShowForm(false);setEditId(null);setNome("");setValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
+            </div>
+          </Card>
+        )}
+        {!showForm && (
+          <button onClick={()=>setShowForm(true)} style={{ width:"100%", padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer", marginTop:4 }}>
+            + Nova despesa fixa
+          </button>
+        )}
+      </>)}
+
+      {/* ══ ABA PLANEJAMENTO ══ */}
+      {aba === "planejados" && (<>
+        <Card T={T}>
+          <ST T={T}>Gastos planejados</ST>
+          <div style={{ fontSize:12, color:T.textMuted, marginBottom:8 }}>
+            Reserve valores para meses futuros. Não afeta o saldo atual — serve só para se planejar.
+          </div>
+        </Card>
+
+        {Object.keys(planesByMes).length === 0 ? (
+          <Emp T={T}>Nenhum gasto planejado ainda.</Emp>
+        ) : Object.keys(planesByMes).map(mes => {
+          const lista = planesByMes[mes];
+          const totalMes = lista.reduce((s,p)=>s+p.valor,0);
+          const pagosMes = lista.filter(p=>p.pago).reduce((s,p)=>s+p.valor,0);
+          return (
+            <Card key={mes} T={T}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <ST T={T}>{monthLabel(mes)}</ST>
+                <div style={{ fontSize:12, color:T.textMuted }}>Total: <b style={{ color:"#BA7517" }}>{fmt(totalMes)}</b>{pagosMes>0&&<> · Pago: <b style={{ color:"#1D9E75" }}>{fmt(pagosMes)}</b></>}</div>
               </div>
-            );
-          })}
-        </Card>
-      )}
+              {lista.map(p => (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:`0.5px solid ${T.border}` }}>
+                  <div onClick={()=>togglePlanPago(p)} style={{ width:22, height:22, borderRadius:6, border:`1.5px solid ${p.pago?"#1D9E75":"#BA7517"}`, background:p.pago?"#1D9E75":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
+                    {p.pago && <span style={{ color:"#fff", fontSize:13, lineHeight:1 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:500, color:p.pago?T.textMuted:T.text, textDecoration:p.pago?"line-through":"none" }}>{p.nome}</div>
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:600, color:p.pago?"#1D9E75":"#BA7517" }}>{fmt(p.valor)}</div>
+                  <button onClick={()=>handleEditPlan(p)} style={{ background:"none", border:"none", color:T.textMuted, cursor:"pointer", fontSize:14, padding:4 }}>✏️</button>
+                  <button onClick={()=>handleDeletePlan(p.id)} style={{ background:"none", border:"none", color:"#E24B4A", cursor:"pointer", fontSize:14, padding:4 }}>✕</button>
+                </div>
+              ))}
+            </Card>
+          );
+        })}
 
-      {/* FORMULÁRIO */}
-      {showForm && (
-        <Card T={T}>
-          <ST T={T}>{editId ? "Editar compromisso" : "Novo compromisso"}</ST>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <FG label="Nome" T={T}>
-              <input style={iStyle(T)} type="text" placeholder="Ex: Aluguel, Celular..." value={nome} onChange={e=>setNome(e.target.value)}/>
+        {showPlanForm && (
+          <Card T={T}>
+            <ST T={T}>{editPlanId ? "Editar planejamento" : "Novo gasto planejado"}</ST>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+              <FG label="Descrição" T={T}>
+                <input style={iStyle(T)} type="text" placeholder="Ex: Pneu bicicleta" value={planNome} onChange={e=>setPlanNome(e.target.value)}/>
+              </FG>
+              <FG label="Valor (€)" T={T}>
+                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={planValor} onChange={e=>setPlanValor(e.target.value)}/>
+              </FG>
+            </div>
+            <FG label="Mês previsto" T={T}>
+              <input style={iStyle(T)} type="month" value={planMes} onChange={e=>setPlanMes(e.target.value)}/>
             </FG>
-            <FG label="Valor (€)" T={T}>
-              <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/>
-            </FG>
-          </div>
-          <div style={{ display:"flex", gap:8 }}>
-            <button onClick={handleSave} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
-            <button onClick={()=>{setShowForm(false);setEditId(null);setNome("");setValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
-          </div>
-        </Card>
-      )}
-
-      {!showForm && (
-        <button onClick={()=>setShowForm(true)} style={{ width:"100%", padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer", marginTop:4 }}>
-          + Novo compromisso
-        </button>
-      )}
+            <div style={{ display:"flex", gap:8, marginTop:10 }}>
+              <button onClick={handleSavePlan} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
+              <button onClick={()=>{setShowPlanForm(false);setEditPlanId(null);setPlanNome("");setPlanValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
+            </div>
+          </Card>
+        )}
+        {!showPlanForm && (
+          <button onClick={()=>setShowPlanForm(true)} style={{ width:"100%", padding:10, background:"#BA7517", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer", marginTop:4 }}>
+            + Planejar gasto futuro
+          </button>
+        )}
+      </>)}
     </div>
   );
 }
