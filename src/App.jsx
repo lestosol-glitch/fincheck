@@ -272,15 +272,19 @@ function Dashboard({ data, T, updateData }) {
   const totalInMes  = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const expense = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
 
-  // Saldo geral = todas entradas − todas saídas (igual ao Histórico sem filtro)
+  // Saldo geral = todas entradas − todas saídas − fixas marcadas como pagas este mês
   const totalInGeral  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const totalOutGeral = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
-  const saldoGeral    = totalInGeral - totalOutGeral;
 
-  // Compromissos — mês atual e futuros
-  const compromissos = data.compromissos || [];
-  const pendentes    = compromissos.filter(c => !(c.pago && c.pago[mk]));
+  // Compromissos — mês atual
+  const compromissos  = data.compromissos || [];
+  const pagosMes      = compromissos.filter(c => c.pago && c.pago[mk]);
+  const pendentes     = compromissos.filter(c => !(c.pago && c.pago[mk]));
+  const totalPagoMes  = pagosMes.reduce((s,c) => s + c.valor, 0);
   const totalPendente = pendentes.reduce((s,c) => s + c.valor, 0);
+
+  // Saldo desconta as fixas já pagas (evita contar duas vezes se já lançou como transação)
+  const saldoGeral = totalInGeral - totalOutGeral - totalPagoMes;
 
   const overLimit = data.limit && expense > data.limit;
 
