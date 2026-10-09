@@ -272,19 +272,15 @@ function Dashboard({ data, T, updateData }) {
   const totalInMes  = txMes.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const expense = txMes.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
 
-  // Saldo geral = todas entradas − todas saídas − fixas marcadas como pagas este mês
+  // Saldo geral = todas entradas − todas saídas (igual ao Histórico sem filtro)
   const totalInGeral  = data.transactions.filter(t => t.type === "income").reduce((s,t) => s + t.value, 0);
   const totalOutGeral = data.transactions.filter(t => t.type === "expense").reduce((s,t) => s + t.value, 0);
+  const saldoGeral    = totalInGeral - totalOutGeral;
 
-  // Compromissos — mês atual
+  // Compromissos — mês atual (apenas para o card Pendentes, não afeta saldo)
   const compromissos  = data.compromissos || [];
-  const pagosMes      = compromissos.filter(c => c.pago && c.pago[mk]);
   const pendentes     = compromissos.filter(c => !(c.pago && c.pago[mk]));
-  const totalPagoMes  = pagosMes.reduce((s,c) => s + c.valor, 0);
   const totalPendente = pendentes.reduce((s,c) => s + c.valor, 0);
-
-  // Saldo desconta as fixas já pagas (evita contar duas vezes se já lançou como transação)
-  const saldoGeral = totalInGeral - totalOutGeral - totalPagoMes;
 
   const overLimit = data.limit && expense > data.limit;
 
@@ -1142,23 +1138,27 @@ function FIIs({ data, updateData, T }) {
         );
       })}
 
-      {/* FORMULÁRIO NOVO FII */}
-      {showForm&&(
-        <Card T={T}><ST T={T}>{editId?"Editar FII":"Adicionar FII"}</ST>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-            <div style={{ gridColumn:"1/-1" }}><FG label="Código (ex: HGLG11)" T={T}><input style={iStyle(T)} type="text" placeholder="XXXX11" maxLength={7} value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase())}/></FG></div>
-            <FG label="Qtd. de cotas" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0" min="0" value={cotas} onChange={e=>setCotas(e.target.value)}/></FG>
-            <FG label="Preço médio (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoMedio} onChange={e=>setPrecoMedio(e.target.value)}/></FG>
-            <FG label="Preço atual (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoAtual} onChange={e=>setPrecoAtual(e.target.value)}/></FG>
-            <FG label="Último dividendo/cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.001" value={ultimoDividendo} onChange={e=>setUltimoDividendo(e.target.value)}/></FG>
+      {/* FORMULÁRIO NOVO/EDITAR FII — modal */}
+      {(showForm||editId)&&(
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center" }}>
+          <div style={{ background:T.card,borderRadius:14,padding:24,width:"90%",maxWidth:400,boxShadow:"0 8px 32px rgba(0,0,0,.25)",position:"relative" }}>
+            <button onClick={resetForm} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.textMuted,lineHeight:1 }}>✕</button>
+            <ST T={T}>{editId?"Editar FII":"Adicionar FII"}</ST>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+              <div style={{ gridColumn:"1/-1" }}><FG label="Código (ex: HGLG11)" T={T}><input style={iStyle(T)} type="text" placeholder="XXXX11" maxLength={7} value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase())}/></FG></div>
+              <FG label="Qtd. de cotas" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0" min="0" value={cotas} onChange={e=>setCotas(e.target.value)}/></FG>
+              <FG label="Preço médio (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoMedio} onChange={e=>setPrecoMedio(e.target.value)}/></FG>
+              <FG label="Preço atual (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={precoAtual} onChange={e=>setPrecoAtual(e.target.value)}/></FG>
+              <FG label="Último dividendo/cota (R$)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.001" value={ultimoDividendo} onChange={e=>setUltimoDividendo(e.target.value)}/></FG>
+            </div>
+            <div style={{ display:"flex",gap:8,marginTop:8 }}>
+              <button onClick={handleSave} style={{ flex:2,padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }}>Salvar</button>
+              <button style={{ ...bSm(T),flex:1 }} onClick={resetForm}>Cancelar</button>
+            </div>
           </div>
-          <div style={{ display:"flex",gap:8,marginTop:8 }}>
-            <button onClick={handleSave} style={{ flex:2,padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }}>Salvar</button>
-            <button style={{ ...bSm(T),flex:1 }} onClick={resetForm}>Cancelar</button>
-          </div>
-        </Card>
+        </div>
       )}
-      {!showForm&&<button onClick={()=>setShowForm(true)} style={{ width:"100%",padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer",marginTop:4 }}>+ Adicionar FII</button>}
+      {!showForm&&!editId&&<button onClick={()=>setShowForm(true)} style={{ width:"100%",padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer",marginTop:4 }}>+ Adicionar FII</button>}
     </div>
   );
 }
@@ -1320,24 +1320,27 @@ function Compromissos({ data, updateData, T }) {
           </Card>
         )}
 
-        {showForm && (
-          <Card T={T}>
-            <ST T={T}>{editId ? "Editar compromisso" : "Novo compromisso"}</ST>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-              <FG label="Nome" T={T}>
-                <input style={iStyle(T)} type="text" placeholder="Ex: Aluguel, Celular..." value={nome} onChange={e=>setNome(e.target.value)}/>
-              </FG>
-              <FG label="Valor (€)" T={T}>
-                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/>
-              </FG>
+        {(showForm||editId) && (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <div style={{ background:T.card,borderRadius:14,padding:24,width:"90%",maxWidth:400,boxShadow:"0 8px 32px rgba(0,0,0,.25)",position:"relative" }}>
+              <button onClick={()=>{setShowForm(false);setEditId(null);setNome("");setValor("");}} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.textMuted,lineHeight:1 }}>✕</button>
+              <ST T={T}>{editId ? "Editar compromisso" : "Novo compromisso"}</ST>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                <FG label="Nome" T={T}>
+                  <input style={iStyle(T)} type="text" placeholder="Ex: Aluguel, Celular..." value={nome} onChange={e=>setNome(e.target.value)}/>
+                </FG>
+                <FG label="Valor (€)" T={T}>
+                  <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={valor} onChange={e=>setValor(e.target.value)}/>
+                </FG>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={handleSave} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
+                <button onClick={()=>{setShowForm(false);setEditId(null);setNome("");setValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
+              </div>
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={handleSave} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
-              <button onClick={()=>{setShowForm(false);setEditId(null);setNome("");setValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
-            </div>
-          </Card>
+          </div>
         )}
-        {!showForm && (
+        {!showForm && !editId && (
           <button onClick={()=>setShowForm(true)} style={{ width:"100%", padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer", marginTop:4 }}>
             + Nova despesa fixa
           </button>
@@ -1382,27 +1385,30 @@ function Compromissos({ data, updateData, T }) {
           );
         })}
 
-        {showPlanForm && (
-          <Card T={T}>
-            <ST T={T}>{editPlanId ? "Editar planejamento" : "Novo gasto planejado"}</ST>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-              <FG label="Descrição" T={T}>
-                <input style={iStyle(T)} type="text" placeholder="Ex: Pneu bicicleta" value={planNome} onChange={e=>setPlanNome(e.target.value)}/>
+        {(showPlanForm||editPlanId) && (
+          <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <div style={{ background:T.card,borderRadius:14,padding:24,width:"90%",maxWidth:400,boxShadow:"0 8px 32px rgba(0,0,0,.25)",position:"relative" }}>
+              <button onClick={()=>{setShowPlanForm(false);setEditPlanId(null);setPlanNome("");setPlanValor("");}} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.textMuted,lineHeight:1 }}>✕</button>
+              <ST T={T}>{editPlanId ? "Editar planejamento" : "Novo gasto planejado"}</ST>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                <FG label="Descrição" T={T}>
+                  <input style={iStyle(T)} type="text" placeholder="Ex: Pneu bicicleta" value={planNome} onChange={e=>setPlanNome(e.target.value)}/>
+                </FG>
+                <FG label="Valor (€)" T={T}>
+                  <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={planValor} onChange={e=>setPlanValor(e.target.value)}/>
+                </FG>
+              </div>
+              <FG label="Mês previsto" T={T}>
+                <input style={iStyle(T)} type="month" value={planMes} onChange={e=>setPlanMes(e.target.value)}/>
               </FG>
-              <FG label="Valor (€)" T={T}>
-                <input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={planValor} onChange={e=>setPlanValor(e.target.value)}/>
-              </FG>
+              <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                <button onClick={handleSavePlan} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
+                <button onClick={()=>{setShowPlanForm(false);setEditPlanId(null);setPlanNome("");setPlanValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
+              </div>
             </div>
-            <FG label="Mês previsto" T={T}>
-              <input style={iStyle(T)} type="month" value={planMes} onChange={e=>setPlanMes(e.target.value)}/>
-            </FG>
-            <div style={{ display:"flex", gap:8, marginTop:10 }}>
-              <button onClick={handleSavePlan} style={{ flex:2, padding:10, background:"#1a1a1a", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer" }}>Salvar</button>
-              <button onClick={()=>{setShowPlanForm(false);setEditPlanId(null);setPlanNome("");setPlanValor("");}} style={{ ...bSm(T), flex:1 }}>Cancelar</button>
-            </div>
-          </Card>
+          </div>
         )}
-        {!showPlanForm && (
+        {!showPlanForm && !editPlanId && (
           <button onClick={()=>setShowPlanForm(true)} style={{ width:"100%", padding:10, background:"#BA7517", color:"#fff", border:"none", borderRadius:8, fontSize:14, fontWeight:500, cursor:"pointer", marginTop:4 }}>
             + Planejar gasto futuro
           </button>
@@ -1417,16 +1423,32 @@ function Compromissos({ data, updateData, T }) {
 // ============================================================
 function Categories({ data, updateData, T }) {
   const [newCat,setNewCat]=useState("");
-  function addCat(){const val=newCat.trim();if(!val||data.categories.includes(val))return;updateData(d=>{d.categories.push(val);return d;});setNewCat("");}
+  const [showCatForm,setShowCatForm]=useState(false);
+  function addCat(){const val=newCat.trim();if(!val||data.categories.includes(val))return;updateData(d=>{d.categories.push(val);return d;});setNewCat("");setShowCatForm(false);}
   function deleteCat(cat){updateData(d=>{d.categories=d.categories.filter(c=>c!==cat);return d;});}
-  return (
+  return (<>
     <Card T={T}><ST T={T}>Categorias ativas</ST>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:12 }}>
         {data.categories.map(c=>(<div key={c} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"8px 10px",background:T.metric,border:`0.5px solid ${T.border}`,borderRadius:8 }}><span style={{ fontSize:13,color:T.text }}>{c}</span><button onClick={()=>deleteCat(c)} style={{ background:"none",border:"none",color:T.textMuted,cursor:"pointer",fontSize:12 }}>✕</button></div>))}
       </div>
-      <div style={{ display:"flex",gap:8 }}><input style={{ ...iStyle(T),flex:1 }} type="text" placeholder="Nova categoria..." maxLength={30} value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCat()}/><button style={bSm(T)} onClick={addCat}>Adicionar</button></div>
+      <button style={{ ...bSm(T),width:"100%" }} onClick={()=>setShowCatForm(true)}>+ Nova categoria</button>
     </Card>
-  );
+    {showCatForm&&(
+      <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center" }}>
+        <div style={{ background:T.card,borderRadius:14,padding:24,width:"90%",maxWidth:400,boxShadow:"0 8px 32px rgba(0,0,0,.25)",position:"relative" }}>
+          <button onClick={()=>{setShowCatForm(false);setNewCat("");}} style={{ position:"absolute",top:12,right:14,background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.textMuted,lineHeight:1 }}>✕</button>
+          <ST T={T}>Nova categoria</ST>
+          <FG label="Nome da categoria" T={T}>
+            <input style={iStyle(T)} type="text" placeholder="Nova categoria..." maxLength={30} value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCat()} autoFocus/>
+          </FG>
+          <div style={{ display:"flex",gap:8,marginTop:4 }}>
+            <button style={{ flex:2,padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }} onClick={addCat}>Adicionar</button>
+            <button style={{ ...bSm(T),flex:1 }} onClick={()=>{setShowCatForm(false);setNewCat("");}}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>);
 }
 
 // ============================================================
