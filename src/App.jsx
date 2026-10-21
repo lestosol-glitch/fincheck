@@ -318,7 +318,7 @@ function Dashboard({ data, T, updateData }) {
   const last6 = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(); d.setMonth(d.getMonth() - i);
-    const mk2 = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+    const mk2 = d.toISOString().slice(0, 7);
     const txs = data.transactions.filter(t => monthKey(t.date) === mk2);
     last6.push({
       label:   monthLabel(mk2),
@@ -349,11 +349,7 @@ function Dashboard({ data, T, updateData }) {
           </div>
           {pendentes.length>0&&<div style={{ fontSize:9,color:"#92400E",marginTop:2 }}>{pendentes.length} item{pendentes.length!==1?"s":""}</div>}
         </div>
-        <div style={{ background:T.metric, borderRadius:10, padding:"10px 8px", textAlign:"center", minWidth:0, border:`0.5px solid ${T.border}` }}>
-          <div style={{ fontSize:10, color:T.textMuted, marginBottom:4 }}>Saldo acumulado</div>
-          <div style={{ fontSize:15, fontWeight:700, color: saldoGeral>=0?"#185FA5":"#E24B4A", wordBreak:"break-all" }}>{fmt(saldoGeral)}</div>
-          <div style={{ fontSize:9, color:T.textMuted, marginTop:2 }}>todos os períodos</div>
-        </div>
+        <MC label="Saldo geral" value={fmt(saldoGeral)} color={saldoGeral>=0?"#185FA5":"#E24B4A"} T={T}/>
       </div>
 
       {/* MODAL PENDENTES */}
