@@ -39,8 +39,19 @@ function clearAuth()    { localStorage.removeItem(AUTH_KEY); }
 
 function fmt(n)    { return "€ "  + Number(n).toLocaleString("pt-PT", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
 function fmtBRL(n) { return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
-function todayStr()        { return new Date().toISOString().slice(0,10); }
-function currentMonthKey() { return new Date().toISOString().slice(0,7); }
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return y + "-" + m + "-" + day;
+}
+function currentMonthKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  return y + "-" + m;
+}
 function monthKey(d)       { return d ? d.slice(0,7) : ""; }
 function monthLabel(mk) {
   if (!mk) return "";
@@ -251,7 +262,7 @@ function QuickAdd({ data, updateData, T, onClose }) {
         </div>
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
           <div><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Valor (€)</label><input autoFocus style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" value={value} onChange={e=>setValue(e.target.value)}/></div>
-          <div><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Categoria</label><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+          <div><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Categoria</label><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{[...data.categories].sort((a,b)=>a.localeCompare(b,'pt')).map(c=><option key={c} value={c}>{c}</option>)}</select></div>
         </div>
         <div style={{ marginBottom:12 }}><label style={{ fontSize:12,color:T.textMuted,display:"block",marginBottom:4 }}>Descrição (opcional)</label><input style={iStyle(T)} type="text" placeholder="Ex: café, uber..." value={description} onChange={e=>setDescription(e.target.value)}/></div>
         <button onClick={handleSave} style={{ width:"100%",padding:12,background:"#1D9E75",color:"#fff",border:"none",borderRadius:10,fontSize:15,fontWeight:600,cursor:"pointer" }}>{saved?"✓ Salvo!":"Salvar gasto"}</button>
@@ -453,7 +464,7 @@ function AddTransaction({ data, updateData, T }) {
       <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
         <FG label="Valor (€)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" placeholder="0,00" min="0" step="0.01" value={value} onChange={e=>setValue(e.target.value)}/></FG>
         <FG label="Data" T={T}><input style={iStyle(T)} type="date" value={date} onChange={e=>setDate(e.target.value)}/></FG>
-        <FG label="Categoria" T={T}><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select></FG>
+        <FG label="Categoria" T={T}><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{[...data.categories].sort((a,b)=>a.localeCompare(b,'pt')).map(c=><option key={c} value={c}>{c}</option>)}</select></FG>
         <FG label="Descrição (opcional)" T={T}><input style={iStyle(T)} type="text" placeholder="Ex: supermercado" value={description} onChange={e=>setDescription(e.target.value)}/></FG>
       </div>
       {type==="expense" && (
@@ -517,14 +528,14 @@ function History({ data, updateData, T }) {
         <ST T={T}>Filtros</ST>
         <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:10 }}>
           <select style={{ ...iStyle(T),flex:1 }} value={fType} onChange={e=>setFType(e.target.value)}><option value="">Todos os tipos</option><option value="income">Entradas</option><option value="expense">Saídas</option></select>
-          <select style={{ ...iStyle(T),flex:1 }} value={fCat} onChange={e=>setFCat(e.target.value)}><option value="">Todas categorias</option>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
+          <select style={{ ...iStyle(T),flex:1 }} value={fCat} onChange={e=>setFCat(e.target.value)}><option value="">Todas categorias</option>{[...data.categories].sort((a,b)=>a.localeCompare(b,'pt')).map(c=><option key={c} value={c}>{c}</option>)}</select>
           <select style={{ ...iStyle(T),flex:1 }} value={fMonth} onChange={e=>setFMonth(e.target.value)}><option value="">Todos os meses</option>{months.map(m=><option key={m} value={m}>{monthLabel(m)}</option>)}</select>
         </div>
         {/* TOTAIS DO FILTRO */}
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10 }}>
           <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Entradas</div><div style={{ fontSize:12,fontWeight:600,color:"#1D9E75" }}>{fmt(totalEntradas)}</div></div>
           <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Saídas</div><div style={{ fontSize:12,fontWeight:600,color:"#E24B4A" }}>{fmt(totalSaidas)}</div></div>
-          <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Saldo</div><div style={{ fontSize:12,fontWeight:600,color:(totalEntradas-totalSaidas)>=0?"#185FA5":"#E24B4A" }}>{fmt(totalEntradas-totalSaidas)}</div></div>
+          <div style={{ background:T.metric,borderRadius:8,padding:"8px 6px",textAlign:"center" }}><div style={{ fontSize:10,color:T.textMuted,marginBottom:2 }}>Saldo</div><div style={{ fontSize:12,fontWeight:600,color:(totalEntradas-totalSaidas)>=0?"#185FA5":"#E24B4A" }}>{(fType||fCat||fMonth)?fmt(totalEntradas-totalSaidas):"-"}</div></div>
         </div>
         {/* BOTÃO EXPORTAR */}
         <button onClick={exportarExcel} style={{ width:"100%",padding:"9px",background:"#1D9E75",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6 }}>
@@ -548,7 +559,7 @@ function EditModal({ tx, data, T, onSave, onClose }) {
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12 }}>
           <FG label="Valor (€)" T={T}><input style={iStyle(T)} type="number" inputMode="decimal" value={value} onChange={e=>setValue(e.target.value)}/></FG>
           <FG label="Data" T={T}><input style={iStyle(T)} type="date" value={date} onChange={e=>setDate(e.target.value)}/></FG>
-          <FG label="Categoria" T={T}><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{data.categories.map(c=><option key={c} value={c}>{c}</option>)}</select></FG>
+          <FG label="Categoria" T={T}><select style={iStyle(T)} value={category} onChange={e=>setCategory(e.target.value)}>{[...data.categories].sort((a,b)=>a.localeCompare(b,'pt')).map(c=><option key={c} value={c}>{c}</option>)}</select></FG>
           <FG label="Descrição" T={T}><input style={iStyle(T)} type="text" value={description} onChange={e=>setDescription(e.target.value)}/></FG>
         </div>
         <button onClick={handleSave} style={{ width:"100%",padding:10,background:"#1a1a1a",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,cursor:"pointer" }}>Salvar alterações</button>
@@ -1424,12 +1435,12 @@ function Compromissos({ data, updateData, T }) {
 function Categories({ data, updateData, T }) {
   const [newCat,setNewCat]=useState("");
   const [showCatForm,setShowCatForm]=useState(false);
-  function addCat(){const val=newCat.trim();if(!val||data.categories.includes(val))return;updateData(d=>{d.categories.push(val);return d;});setNewCat("");setShowCatForm(false);}
+  function addCat(){const val=newCat.trim();if(!val||data.categories.includes(val))return;updateData(d=>{d.categories=[...d.categories,val].sort((a,b)=>a.localeCompare(b,'pt'));return d;});setNewCat("");setShowCatForm(false);}
   function deleteCat(cat){updateData(d=>{d.categories=d.categories.filter(c=>c!==cat);return d;});}
   return (<>
     <Card T={T}><ST T={T}>Categorias ativas</ST>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8,marginBottom:12 }}>
-        {data.categories.map(c=>(<div key={c} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"8px 10px",background:T.metric,border:`0.5px solid ${T.border}`,borderRadius:8 }}><span style={{ fontSize:13,color:T.text }}>{c}</span><button onClick={()=>deleteCat(c)} style={{ background:"none",border:"none",color:T.textMuted,cursor:"pointer",fontSize:12 }}>✕</button></div>))}
+        {[...data.categories].sort((a,b)=>a.localeCompare(b,'pt')).map(c=>(<div key={c} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"8px 10px",background:T.metric,border:`0.5px solid ${T.border}`,borderRadius:8 }}><span style={{ fontSize:13,color:T.text }}>{c}</span><button onClick={()=>deleteCat(c)} style={{ background:"none",border:"none",color:T.textMuted,cursor:"pointer",fontSize:12 }}>✕</button></div>))}
       </div>
       <button style={{ ...bSm(T),width:"100%" }} onClick={()=>setShowCatForm(true)}>+ Nova categoria</button>
     </Card>
